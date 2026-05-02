@@ -247,6 +247,112 @@ class TestPhotoAPI:
         assert det["confidence"] == 91
         assert det["bounding_box"] == [10, 20, 30, 40]
 
+    def test_process_photo_without_opt_outs_marks_processed(self, client):
+        eid = self._create_event(client)
+        photo = client.post(f"/events/{eid}/photos", json={
+            "filename": "group.png",
+        }).get_json()
+
+        resp = client.post(f"/events/{eid}/photos/{photo['id']}/process", json={
+            "image_data_url": "data:image/png;base64,UE5HREFUQQ==",
+            "original_image_url": "data:image/png;base64,UE5HREFUQQ==",
+        })
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["status"] == "processed"
+        assert data["detections"] == []
+        assert data["processing"]["match"]["status"] == "no_match"
+
+    def test_process_photo_persists_helper_detections(self, client, monkeypatch):
+        eid = self._create_event(client)
+        attendee = client.post(f"/events/{eid}/attendees", json={
+            "name": "Maya",
+            "consent_status": "opted_out",
+            "opted_out": True,
+            "reference_photo_url": "data:image/png;base64,UkVG",
+        }).get_json()
+        photo = client.post(f"/events/{eid}/photos", json={
+            "filename": "group.png",
+        }).get_json()
+
+        class FakeResponse:
+            def __init__(self, payload):
+                self.payload = payload
+
+            def raise_for_status(self):
+                return None
+
+            def json(self):
+                return self.payload
+
+        calls = []
+
+        def fake_post(url, json, timeout):
+            calls.append((url, json, timeout))
+            if url.endswith("/match-photo"):
+                return FakeResponse({
+                    "photoId": str(photo["id"]),
+                    "eventId": str(eid),
+                    "fileName": "group.png",
+                    "originalImageUrl": json["originalImageUrl"],
+                    "redactedImageUrl": None,
+                    "status": "match_found",
+                    "detections": [{
+                        "id": "det-1",
+                        "photoId": str(photo["id"]),
+                        "attendeeId": str(attendee["id"]),
+                        "attendeeName": "Maya",
+                        "referenceImageUrl": "data:image/png;base64,UkVG",
+                        "confidence": 0.91,
+                        "status": "auto_blurred",
+                        "boundingBox": {"x": 10, "y": 20, "width": 30, "height": 40},
+                    }],
+                    "highestConfidence": 0.91,
+                    "needsManualReview": False,
+                    "success": True,
+                    "error": None,
+                })
+            return FakeResponse({
+                "photoId": str(photo["id"]),
+                "eventId": str(eid),
+                "originalImagePath": json["imagePath"],
+                "outputImagePath": "tmp/group_redacted.png",
+                "boxesApplied": 1,
+                "boxesSkipped": 0,
+                "needsManualReview": False,
+                "success": True,
+                "error": None,
+            })
+
+        monkeypatch.setattr("backend.ai_processing.requests.post", fake_post)
+
+        resp = client.post(f"/events/{eid}/photos/{photo['id']}/process", json={
+            "image_data_url": "data:image/png;base64,UE5HREFUQQ==",
+            "original_image_url": "data:image/png;base64,UE5HREFUQQ==",
+        })
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["status"] == "processed"
+        assert data["redacted_image_url"] == "tmp/group_redacted.png"
+        assert len(data["detections"]) == 1
+        assert data["detections"][0]["confidence"] == 91
+        assert data["detections"][0]["redaction_status"] == "auto_blurred"
+        assert data["detections"][0]["bounding_box"] == [10, 20, 30, 40]
+        assert [call[0].rsplit("/", 1)[-1] for call in calls] == ["match-photo", "redact"]
+
+    def test_process_photo_rejects_missing_image(self, client):
+        eid = self._create_event(client)
+        photo = client.post(f"/events/{eid}/photos", json={
+            "filename": "group.png",
+        }).get_json()
+
+        resp = client.post(f"/events/{eid}/photos/{photo['id']}/process", json={})
+
+        assert resp.status_code == 400
+        assert "No readable event photo" in resp.get_json()["error"]
+
     def test_photo_not_in_event(self, client):
         eid1 = self._create_event(client)
         eid2 = self._create_event(client)
@@ -353,3 +459,13 @@ class TestSeedAPI:
                 assert url is None or url.startswith("/uploads/"), (
                     f"Detection for {row['attendee_name']!r} has invalid reference_photo_url: {url!r}"
                 )
+
+    def test_seed_adds_demo_event_when_other_events_exist(self, client):
+        client.post("/events", json={"name": "Other", "organizer_id": "org"})
+
+        resp = client.post("/seed")
+        data = resp.get_json()
+
+        assert data["seeded"] is True
+        assert data["event_key"] == "HUSKY-42F7"
+        assert client.get("/events/key/HUSKY-42F7").status_code == 200

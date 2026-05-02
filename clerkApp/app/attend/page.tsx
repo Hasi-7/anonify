@@ -12,7 +12,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { BrandLogo } from "@/components/brand-logo";
-import { adaptEvent, getEventByKey, submitAttendee } from "@/lib/api";
+import { adaptEvent, getBackendHealth, getEventByKey, seedDemoData, submitAttendee } from "@/lib/api";
 import { events, type EventSummary } from "@/lib/mock-data";
 
 type ConsentChoice = "opt-in" | "opt-out";
@@ -46,7 +46,16 @@ const normalizeKey = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g
 
 const formatKey = (value: string) => {
   const normalized = normalizeKey(value);
-  return normalized.length <= 4 ? normalized : `${normalized.slice(0, 4)}-${normalized.slice(4, 8)}`;
+  if ("HUSKY".startsWith(normalized)) {
+    return normalized;
+  }
+
+  if (normalized.startsWith("HUSKY")) {
+    const suffix = normalized.slice(5, 9);
+    return suffix ? `HUSKY-${suffix}` : normalized;
+  }
+
+  return normalized.length <= 3 ? normalized : `${normalized.slice(0, 3)}-${normalized.slice(3, 7)}`;
 };
 
 const findEvent = (value: string, eventList: EventSummary[]) => {
@@ -182,7 +191,13 @@ export default function AttendPage() {
   }, [stopCamera]);
 
   const lookupBackendEvent = useCallback(async (value: string) => {
-    const result = await getEventByKey(formatKey(value));
+    const formattedKey = formatKey(value);
+    let result = await getEventByKey(formattedKey);
+    if (!result.ok && formattedKey === "HUSKY-42F7") {
+      await seedDemoData();
+      result = await getEventByKey(formattedKey);
+    }
+
     if (!result.ok) {
       return null;
     }
@@ -506,14 +521,31 @@ export default function AttendPage() {
       const backendEventId = backendEvent?.id ?? (/^\d+$/.test(selectedEvent.id) ? selectedEvent.id : null);
 
       if (backendEventId) {
-        await submitAttendee(backendEventId, {
+        const submitResult = await submitAttendee(backendEventId, {
           name: record.name,
           consent_status: consent === "opt-out" ? "opted_out" : "consented",
           opted_out: consent === "opt-out",
           reference_photo_url: consent === "opt-out" ? photoDataUrl || null : null
         });
+
+        if (!submitResult.ok) {
+          throw new Error(submitResult.error);
+        }
+      } else {
+        const health = await getBackendHealth();
+        if (!health.ok) {
+          throw new Error(health.error);
+        }
+        throw new Error("Backend event was not found. Check the event key and make sure the backend is seeded.");
       }
-    } finally {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setSubmitError(`Could not save to the organizer dashboard: ${message}`);
+      setIsSubmitting(false);
+      return;
+    }
+
+    {
       setSubmission(record);
       setStep("submitted");
       setIsSubmitting(false);

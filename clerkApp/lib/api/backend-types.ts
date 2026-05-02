@@ -75,6 +75,11 @@ export type BackendDetection = {
 
 export type BackendPhotoDetail = BackendPhoto & {
   detections: BackendDetection[]
+  processing?: {
+    match?: unknown
+    redaction?: unknown
+    detections_inserted?: number
+  }
 }
 
 export type SubmitAttendeePayload = {
@@ -92,6 +97,12 @@ export type CreateEventPayload = {
 export type RegisterPhotoPayload = {
   filename: string
   source?: "upload" | "google_drive"
+}
+
+export type ProcessPhotoPayload = {
+  image_data_url?: string
+  image_path?: string
+  original_image_url?: string
 }
 
 export type FrontendEvent = {

@@ -996,6 +996,12 @@ code {
   width: 34px;
 }
 
+.reference-avatar img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
 .audit-timeline {
   display: grid;
   gap: 12px;

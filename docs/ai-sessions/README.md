@@ -56,3 +56,14 @@ Use this directory to keep concise summaries of significant AI-assisted work.
 - Open issues: None for documentation alignment.
 - Next actions: Keep future feature work inside the canonical app/service directories.
 - What should be saved to the second brain: AI/redaction frontend imports resolve inside `clerkApp` through `@/` aliases; real region blur remains separate in `ai_redaction/` on `localhost:8001`.
+
+## Backend AI Processing Bridge Session
+
+- Goal: Connect the working frontend upload/review flow to the Flask backend and local AI redaction helper.
+- Files changed: `backend/app.py`, `backend/ai_processing.py`, `backend/models.py`, `backend/tests/test_api.py`, `clerkApp/components/anonify-experience.tsx`, `clerkApp/lib/api/backend-client.ts`, `clerkApp/lib/api/backend-types.ts`, `.gitignore`, `docs/decisions/decisions.md`, and `context/current-task.md`.
+- Commands run: `npm.cmd run validate:api`, `npm.cmd run lint`, `npm.cmd run build:safe`, `py -m pip install -r requirements.txt`, and `py -m pytest backend/tests`.
+- Decisions made: Flask now has a demo processing endpoint that calls only local AI helper URLs, persists detections, and keeps generated upload/runtime files ignored.
+- Tests run: Backend pytest suite passed with 42 tests. Next API validation passed. Lint passed with existing warnings. `build:safe` passed.
+- Open issues: Real recognition still needs the FastAPI helper running separately on `localhost:8001`; quality depends on local model/helper readiness and attendee reference images.
+- Next actions: Start the Flask backend and AI helper together for a live demo, then submit real opt-out reference photos before uploading event photos.
+- What should be saved to the second brain: The frontend/backend/AI path is now `registerEventPhoto()` -> Flask `/process` -> local `/match-photo` -> local `/redact` -> persisted backend detections -> dashboard review model.

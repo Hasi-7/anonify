@@ -59,3 +59,10 @@
 - Integration files use `import "server-only"` and live in `clerkApp/server/integrations/`, structurally separated from client code.
 - ESLint forbids importing `@/server/integrations` outside `clerkApp/app/api/**` and `clerkApp/server/**`, making the server-only boundary structural instead of purely conventional.
 - `requireOrganizerAuth()` in `clerkApp/server/require-organizer.ts` is the underlying Clerk auth helper used only by the organizer route wrapper, returning userId or 401.
+
+## 2026-05-02 Backend AI Processing Bridge
+
+- Flask owns photo processing persistence for the demo path: the frontend registers a photo, then calls `POST /events/{event_id}/photos/{photo_id}/process`.
+- The processing endpoint accepts an uploaded image data URL or explicit local image path, writes demo runtime files under ignored `backend/runtime/`, calls the local `ai_redaction` helper on `localhost:8001`, persists returned detections, and marks the photo processed or failed.
+- The helper URL must stay local (`localhost` or `127.0.0.1`) to avoid sending attendee/event images to remote services.
+- Browser upload previews normalize returned pixel boxes into the existing 400x300 review coordinate space so real detections can render in the current dashboard without a larger UI rewrite.

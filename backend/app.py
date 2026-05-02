@@ -13,7 +13,9 @@ from .models import (
     insert_attendee, get_attendees_by_event,
     insert_photo, get_photos_by_event, get_photo_by_id,
     get_detections_by_photo,
+    delete_detections_by_photo,
     get_event_overview,
+    update_photo_status,
 )
 
 _UPLOADS_DIR = Path(__file__).resolve().parent / "uploads" / "attendees"
@@ -216,6 +218,74 @@ def create_app() -> Flask:
         result = _photo_dict(photo)
         result["detections"] = [_detection_dict(d) for d in detections]
         return jsonify(result), 200
+
+    @app.route("/events/<int:event_id>/photos/<int:photo_id>/process", methods=["POST"])
+    def process_photo(event_id: int, photo_id: int):
+        from .ai_processing import (
+            ProcessingError,
+            attendee_payloads,
+            call_match_and_redact,
+            persist_detections,
+            resolve_image_path,
+        )
+
+        db = get_db()
+        event = get_event_by_id(db, event_id)
+        if not event:
+            abort(404, description="Event not found")
+
+        photo = get_photo_by_id(db, photo_id)
+        if not photo or photo.event_id != event_id:
+            abort(404, description="Photo not found in this event")
+
+        payload = request.get_json(silent=True) or {}
+        original_image_url = payload.get("original_image_url") or f"/mock-photos/{photo.filename}"
+
+        update_photo_status(db, photo_id, "processing")
+
+        try:
+            image_path = resolve_image_path(
+                event_id=event_id,
+                photo=photo,
+                image_data_url=payload.get("image_data_url"),
+                image_path=payload.get("image_path"),
+            )
+            opted_out = get_attendees_by_event(db, event_id, opted_out_only=True)
+            processing = call_match_and_redact(
+                event_id=event_id,
+                photo=photo,
+                image_path=image_path,
+                original_image_url=original_image_url,
+                opted_out_attendees=attendee_payloads(event_id, opted_out),
+            )
+            match_result = processing.get("match") or {}
+            detections = match_result.get("detections") or []
+
+            delete_detections_by_photo(db, photo_id)
+            inserted_count = persist_detections(db, photo_id, detections if isinstance(detections, list) else [])
+
+            redaction = processing.get("redaction")
+            redaction_failed = bool(redaction) and not redaction.get("success")
+            match_failed = match_result.get("success") is False
+            update_photo_status(db, photo_id, "failed" if match_failed or redaction_failed else "processed")
+
+            refreshed_photo = get_photo_by_id(db, photo_id)
+            result = _photo_dict(refreshed_photo)
+            result["detections"] = [_detection_dict(d) for d in get_detections_by_photo(db, photo_id)]
+            if match_result.get("redactedImageUrl"):
+                result["redacted_image_url"] = match_result["redactedImageUrl"]
+            result["processing"] = {
+                "match": match_result,
+                "redaction": redaction,
+                "detections_inserted": inserted_count,
+            }
+            return jsonify(result), 200
+        except ProcessingError as exc:
+            update_photo_status(db, photo_id, "failed")
+            return jsonify({"error": str(exc)}), 400
+        except Exception as exc:  # noqa: BLE001
+            update_photo_status(db, photo_id, "failed")
+            return jsonify({"error": f"AI helper unavailable: {exc}"}), 502
 
     # ------------------------------------------------------------------
     # Seed (dev only)

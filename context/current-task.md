@@ -21,7 +21,7 @@ Hacking has started. AI/Redaction mock pipeline is complete. Backend API routes,
   - Full CRUD functions with event-scoped isolation.
   - All API routes per contract.
   - Mock seed data with demo event, attendees, photos, and detections.
-  - 38 pytest tests all passing.
+  - 42 pytest tests all passing.
 
 - **AI/Redaction (Person 4)**
   - AI/Redaction mock processing pipeline (`lib/processing/`, `types/`, `mocks/`).
@@ -44,6 +44,10 @@ Hacking has started. AI/Redaction mock pipeline is complete. Backend API routes,
 - Connect AI pipeline to Backend:
   - Integrate `processEventPhotos()` into backend API route or Next.js API layer.
   - Coordinate with frontend (Person 1) on API contract.
+- Backend AI helper bridge:
+  - `POST /events/{event_id}/photos/{photo_id}/process` writes demo image inputs under ignored `backend/runtime/`, calls the local AI helper on `localhost:8001`, persists detections, and returns a backend photo detail.
+  - Organizer uploads now register photos with Flask and call the processing endpoint when the selected event is a backend event.
+  - Real recognition/blur requires the Flask backend plus `uvicorn ai_redaction.server:app --port 8001` running locally.
 
 ## Completed (Integrations — Person 3)
 

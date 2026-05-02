@@ -324,6 +324,12 @@ def insert_detection(
     )
 
 
+def delete_detections_by_photo(db: Connection, photo_id: int) -> int:
+    cursor = db.execute("DELETE FROM detections WHERE photo_id = ?", (photo_id,))
+    db.commit()
+    return cursor.rowcount
+
+
 def get_detections_by_photo(db: Connection, photo_id: int) -> list[Detection]:
     rows = db.execute(
         "SELECT * FROM detections WHERE photo_id = ? ORDER BY confidence DESC",

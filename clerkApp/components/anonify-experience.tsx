@@ -12,9 +12,13 @@ import {
   getEventOverview,
   getEventPhotoDetail,
   getEventPhotos,
-  getOptOutAttendees
+  getOptOutAttendees,
+  processEventPhoto,
+  registerEventPhoto,
+  seedDemoData
 } from "@/lib/api";
 import { BACKEND_URL } from "@/lib/api/backend-client";
+import { backendPhotoDetailToPhotoReviewModel } from "@/lib/processing/backend-photo-review-adapter";
 import {
   attendees,
   auditLog,
@@ -106,6 +110,54 @@ const toReviewFigures = (model: PhotoReviewModel): Figure[] =>
     confidence: region.confidencePercent / 100
   }));
 
+const readImageSize = (src: string): Promise<{ width: number; height: number } | null> =>
+  new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
+    image.onerror = () => resolve(null);
+    image.src = src;
+  });
+
+const normalizeReviewModelForPreview = (
+  model: PhotoReviewModel,
+  imageSize: { width: number; height: number } | null
+): PhotoReviewModel => {
+  if (!imageSize?.width || !imageSize.height) {
+    return model;
+  }
+
+  return {
+    ...model,
+    regions: model.regions.map((region) => ({
+      ...region,
+      x: (region.x / imageSize.width) * 400,
+      y: (region.y / imageSize.height) * 300,
+      width: (region.width / imageSize.width) * 400,
+      height: (region.height / imageSize.height) * 300
+    }))
+  };
+};
+
+const toAdminAttendees = (
+  backendAttendees: Array<{
+    id: number;
+    name: string;
+    consent_status: "opted_out" | "consented";
+    reference_photo_url: string | null;
+    submitted_at: string;
+  }>
+): Attendee[] =>
+  backendAttendees.map((attendee, index) => ({
+    id: String(attendee.id),
+    name: attendee.name,
+    email: "",
+    submitted: formatTime(attendee.submitted_at),
+    status: attendee.consent_status,
+    referenceHue: (index * 57 + 180) % 360,
+    referencePhotoUrl: attendee.reference_photo_url,
+    confidenceNote: attendee.reference_photo_url ? "Reference photo submitted" : "No reference photo"
+  }));
+
 export function AnonifyExperience() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const singleDownloadRef = useRef<HTMLAnchorElement | null>(null);
@@ -121,12 +173,18 @@ export function AnonifyExperience() {
   const [creatingEvent, setCreatingEvent] = useState(false);
   const [activeTab, setActiveTab] = useState<OrganizerTab>("intake");
   const [exportMessage, setExportMessage] = useState("Anonymize photos to enable exports.");
+  const [reviewModelsByPhotoId, setReviewModelsByPhotoId] = useState<Record<string, PhotoReviewModel>>({});
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadBackendDemoEvent() {
-      const eventResult = await getEventByKey(DEMO_EVENT_KEY);
+      let eventResult = await getEventByKey(DEMO_EVENT_KEY);
+      if (!eventResult.ok) {
+        await seedDemoData();
+        eventResult = await getEventByKey(DEMO_EVENT_KEY);
+      }
+
       if (!eventResult.ok) {
         return;
       }
@@ -163,25 +221,14 @@ export function AnonifyExperience() {
       setSelectedEventId(hydratedEvent.id);
 
       if (attendeeResult.ok) {
-        setOptOutAttendees(
-          attendeeResult.data.map((attendee, index) => ({
-            id: String(attendee.id),
-            name: attendee.name,
-            email: "",
-            submitted: formatTime(attendee.submitted_at),
-            status: attendee.consent_status,
-            referenceHue: (index * 57 + 180) % 360,
-            confidenceNote: attendee.reference_photo_url ? "Reference photo submitted" : "No reference photo",
-            referencePhotoUrl: attendee.reference_photo_url ?? null,
-          }))
-        );
+        setOptOutAttendees(toAdminAttendees(attendeeResult.data));
       }
 
       if (photoResult.ok && photoResult.data.length > 0) {
         const details = await Promise.all(
           photoResult.data.map(async (photo) => {
             const detailResult = await getEventPhotoDetail(backendEvent.id, photo.id);
-            return detailResult.ok ? adaptPhotoDetail(detailResult.data) : null;
+            return detailResult.ok ? detailResult.data : null;
           })
         );
 
@@ -190,7 +237,8 @@ export function AnonifyExperience() {
         }
 
         const backendPhotos: OrganizerPhoto[] = photoResult.data.map((photo, index) => {
-          const detail = details[index];
+          const rawDetail = details[index];
+          const detail = rawDetail ? adaptPhotoDetail(rawDetail) : null;
           const detections = detail?.detections ?? [];
 
           return {
@@ -218,6 +266,15 @@ export function AnonifyExperience() {
           };
         });
 
+        setReviewModelsByPhotoId((currentModels) => {
+          const nextModels = { ...currentModels };
+          details.forEach((detail) => {
+            if (detail) {
+              nextModels[String(detail.id)] = backendPhotoDetailToPhotoReviewModel(detail);
+            }
+          });
+          return nextModels;
+        });
         setPhotoList(backendPhotos);
         setSelectedPhotoId(backendPhotos[0]?.id ?? "");
       }
@@ -230,12 +287,64 @@ export function AnonifyExperience() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!/^\d+$/.test(selectedEventId)) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const refreshAdminView = async () => {
+      const [overviewResult, attendeeResult] = await Promise.all([
+        getEventOverview(selectedEventId),
+        getOptOutAttendees(selectedEventId)
+      ]);
+
+      if (cancelled) {
+        return;
+      }
+
+      if (attendeeResult.ok) {
+        setOptOutAttendees(toAdminAttendees(attendeeResult.data));
+      }
+
+      if (overviewResult.ok) {
+        const overview = adaptEventOverview(overviewResult.data, selectedEventId);
+        setEventList((currentEvents) =>
+          currentEvents.map((event) =>
+            event.id === selectedEventId
+              ? {
+                  ...event,
+                  attendees: overview.attendees,
+                  optOuts: overview.optOuts,
+                  photos: overview.photos,
+                  processed: overview.processed,
+                  needsReview: overview.needsReview
+                }
+              : event
+          )
+        );
+      }
+    };
+
+    const intervalId = window.setInterval(() => {
+      void refreshAdminView();
+    }, 3000);
+
+    void refreshAdminView();
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [selectedEventId]);
+
   const selectedEvent =
     eventList.find((event) => event.id === selectedEventId) ?? eventList[0];
   const selectedPhoto =
     photoList.find((photo) => photo.id === selectedPhotoId) ?? photoList[0];
   const selectedPhotoReviewModel = selectedPhoto
-    ? getMockPhotoReviewModel(toReviewFixtureId(selectedPhoto.id))
+    ? reviewModelsByPhotoId[selectedPhoto.id] ?? getMockPhotoReviewModel(toReviewFixtureId(selectedPhoto.id))
     : undefined;
   const processedCount = photoList.filter((photo) => photo.redacted || photo.status === "no_match").length;
   const reviewCount = photoList.filter((photo) => photo.status === "manual_review").length;
@@ -307,6 +416,8 @@ export function AnonifyExperience() {
       return;
     }
 
+    const backendEventId = /^\d+$/.test(selectedEvent.id) ? selectedEvent.id : null;
+
     files.forEach((file, index) => {
       const reader = new FileReader();
 
@@ -316,21 +427,119 @@ export function AnonifyExperience() {
           return;
         }
 
+        const dataUrl = reader.result;
         const created: OrganizerPhoto = {
           id: `upload-${Date.now()}-${index}`,
           name: file.name || "uploaded-event-photo.jpg",
           captured: "Just now",
           source: "Organizer upload",
-          status: "not_processed",
+          status: "processing",
           bg: ["#dcfce7", "#86efac"],
-          figures: demoFigures.map((figure) => ({ ...figure, id: `${figure.id}-${Date.now()}-${index}` })),
-          dataUrl: reader.result,
+          figures: [],
+          dataUrl,
           redacted: false
         };
 
         setPhotoList((currentPhotos) => [created, ...currentPhotos]);
         setSelectedPhotoId(created.id);
-        setUploadMessage(`${file.name} is ready to anonymize.`);
+        setUploadMessage(`${file.name} uploaded. Running backend recognition and blur.`);
+
+        void (async () => {
+          if (!backendEventId) {
+            setPhotoList((currentPhotos) =>
+              currentPhotos.map((photo) =>
+                photo.id === created.id
+                  ? {
+                      ...photo,
+                      status: "not_processed",
+                      figures: demoFigures.map((figure) => ({ ...figure, id: `${figure.id}-${created.id}` }))
+                    }
+                  : photo
+              )
+            );
+            setUploadMessage("Select the backend demo event before running recognition.");
+            return;
+          }
+
+          const imageSize = await readImageSize(dataUrl);
+          const registered = await registerEventPhoto(backendEventId, {
+            filename: file.name || "uploaded-event-photo.jpg",
+            source: "upload"
+          });
+
+          if (!registered.ok) {
+            throw new Error(registered.error);
+          }
+
+          const backendPhotoId = String(registered.data.id);
+          setSelectedPhotoId((currentId) => currentId === created.id ? backendPhotoId : currentId);
+          setPhotoList((currentPhotos) =>
+            currentPhotos.map((photo) =>
+              photo.id === created.id
+                ? {
+                    ...photo,
+                    id: backendPhotoId,
+                    captured: formatTime(registered.data.uploaded_at),
+                    name: registered.data.filename,
+                    status: "processing"
+                  }
+                : photo
+            )
+          );
+
+          const processed = await processEventPhoto(backendEventId, backendPhotoId, {
+            image_data_url: dataUrl,
+            original_image_url: dataUrl
+          });
+
+          if (!processed.ok) {
+            throw new Error(processed.error);
+          }
+
+          const reviewModel = normalizeReviewModelForPreview(
+            backendPhotoDetailToPhotoReviewModel(processed.data),
+            imageSize
+          );
+          const detail = adaptPhotoDetail(processed.data);
+          const detections = detail.detections;
+          const nextStatus: PhotoStatus = detections.some((detection) => detection.manualReviewRequired)
+            ? "manual_review"
+            : detections.length > 0
+              ? "match"
+              : "no_match";
+
+          setReviewModelsByPhotoId((currentModels) => ({
+            ...currentModels,
+            [backendPhotoId]: reviewModel
+          }));
+          setPhotoList((currentPhotos) =>
+            currentPhotos.map((photo) =>
+              photo.id === backendPhotoId
+                ? {
+                    ...photo,
+                    status: nextStatus,
+                    figures: toReviewFigures(reviewModel),
+                    redacted: Boolean(processed.data.redacted_image_url)
+                  }
+                : photo
+            )
+          );
+          setUploadMessage(
+            detections.length > 0
+              ? `${file.name} processed with ${detections.length} opted-out detection${detections.length === 1 ? "" : "s"}.`
+              : `${file.name} processed. No opted-out attendees were detected.`
+          );
+        })().catch((error) => {
+          const message = error instanceof Error ? error.message : String(error);
+          setPhotoList((currentPhotos) =>
+            currentPhotos.map((photo) =>
+              photo.id === created.id || photo.name === created.name
+                ? { ...photo, status: "not_processed" }
+                : photo
+            )
+          );
+          setUploadMessage(`Backend recognition did not complete: ${message}`);
+        });
       };
 
       reader.onerror = () => setUploadMessage("One upload could not be read.");

@@ -18,6 +18,7 @@ export type Attendee = {
   submitted: string;
   status: "opted_out" | "consented";
   referenceHue: number;
+  referencePhotoUrl?: string | null;
   confidenceNote: string;
 };
 

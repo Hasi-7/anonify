@@ -8,6 +8,7 @@ import type {
   BackendPhotoDetail,
   BackendSeedResponse,
   CreateEventPayload,
+  ProcessPhotoPayload,
   RegisterPhotoPayload,
   SubmitAttendeePayload,
 } from "./backend-types"
@@ -127,4 +128,15 @@ export function getEventPhotoDetail(
   photoId: string | number
 ): Promise<BackendApiResult<BackendPhotoDetail>> {
   return requestBackend(`/events/${eventId}/photos/${photoId}`)
+}
+
+export function processEventPhoto(
+  eventId: string | number,
+  photoId: string | number,
+  payload: ProcessPhotoPayload
+): Promise<BackendApiResult<BackendPhotoDetail>> {
+  return requestBackend(`/events/${eventId}/photos/${photoId}/process`, {
+    method: "POST",
+    body: payload,
+  })
 }

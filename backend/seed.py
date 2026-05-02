@@ -17,13 +17,21 @@ from .models import (
 def seed_database(db: Connection) -> dict:
     """Populate the database with demo data. Safe to call multiple times."""
 
-    # Guard: skip if data already exists
-    count = db.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+    # Guard: skip only when the demo event itself already exists. Other
+    # locally-created events should not block the hackathon demo seed.
+    event_key = "HUSKY-42F7"
+    existing_demo = db.execute(
+        "SELECT id FROM events WHERE event_key = ?", (event_key,)
+    ).fetchone()
+    count = 1 if existing_demo else 0
     if count > 0:
-        return {"message": "Database already has data — skipping seed", "seeded": False}
+        return {
+            "message": "Demo data already exists - skipping seed",
+            "seeded": False,
+            "event_key": event_key,
+        }
 
     # --- Demo Event ---
-    event_key = "HUSKY-42F7"
     now = "2026-05-02T12:00:00Z"
     db.execute(
         "INSERT INTO events (name, event_key, organizer_id, created_at) VALUES (?, ?, ?, ?)",
