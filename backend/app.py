@@ -1,4 +1,9 @@
-from flask import Flask, request, jsonify, abort
+import base64
+import re
+import uuid
+from pathlib import Path
+
+from flask import Flask, request, jsonify, abort, send_from_directory
 from flask_cors import CORS
 
 from .db import get_db, close_db
@@ -10,6 +15,46 @@ from .models import (
     get_detections_by_photo,
     get_event_overview,
 )
+
+_UPLOADS_DIR = Path(__file__).resolve().parent / "uploads" / "attendees"
+_DATA_URL_RE = re.compile(r"^data:image/([a-zA-Z+\-]+);base64,(.+)$", re.DOTALL)
+
+
+def _extract_data_url(payload: dict) -> str | None:
+    """Return the first data URL found across accepted field name aliases."""
+    # Dedicated data-URL fields — accepted unconditionally.
+    for key in ("reference_image_data_url", "referenceImageDataUrl"):
+        val = payload.get(key)
+        if val and isinstance(val, str):
+            return val.strip()
+    # Legacy / response-echo fields — only when they actually contain a data URL,
+    # not a /uploads/... path that was already written.
+    for key in ("reference_photo_url", "referencePhotoUrl"):
+        val = payload.get(key)
+        if val and isinstance(val, str) and val.strip().startswith("data:image/"):
+            return val.strip()
+    return None
+
+
+def _save_reference_photo(data_url: str) -> str | None:
+    match = _DATA_URL_RE.match(data_url.strip())
+    if not match:
+        return None
+    ext = match.group(1).lower()
+    ext = "jpg" if ext in ("jpeg", "jpg") else ext
+    if ext not in ("jpg", "png", "webp", "gif"):
+        ext = "jpg"
+    try:
+        raw = base64.b64decode(match.group(2))
+    except Exception:
+        return None
+    try:
+        _UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+        filename = f"{uuid.uuid4()}.{ext}"
+        (_UPLOADS_DIR / filename).write_bytes(raw)
+        return f"/uploads/attendees/{filename}"
+    except Exception:
+        return None
 
 
 def create_app() -> Flask:
@@ -96,12 +141,14 @@ def create_app() -> Flask:
         name = payload.get("name")
         consent_status = payload.get("consent_status")
         opted_out = payload.get("opted_out", False)
-        reference_photo_url = payload.get("reference_photo_url")
 
         if not name or not isinstance(name, str):
             abort(400, description="Missing or invalid attendee name")
         if consent_status not in ("opted_out", "consented"):
             abort(400, description="consent_status must be 'opted_out' or 'consented'")
+
+        raw_photo = _extract_data_url(payload)
+        reference_photo_url = _save_reference_photo(raw_photo) if raw_photo else None
 
         attendee = insert_attendee(
             db, event_id=event_id, name=name.strip(),
@@ -173,6 +220,11 @@ def create_app() -> Flask:
     # ------------------------------------------------------------------
     # Seed (dev only)
     # ------------------------------------------------------------------
+
+    @app.route("/uploads/attendees/<string:filename>", methods=["GET"])
+    def serve_attendee_photo(filename: str):
+        uploads_dir = Path(__file__).resolve().parent / "uploads" / "attendees"
+        return send_from_directory(str(uploads_dir), filename)
 
     @app.route("/seed", methods=["POST"])
     def seed_data():

@@ -27,7 +27,7 @@ class Attendee:
     name: str
     consent_status: str            # "opted_out" | "consented"
     opted_out: bool
-    reference_photo_url: str | None  # base64 data URL from live camera capture
+    reference_photo_url: str | None  # relative URL path to uploaded reference photo
     submitted_at: str
 
 

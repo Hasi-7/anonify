@@ -34,10 +34,10 @@ def seed_database(db: Connection) -> dict:
 
     # --- Attendees ---
     attendees_data = [
-        ("Maya Chen",    "opted_out",  True,  "data:image/png;base64,MOCK_MAYA"),
-        ("Jordan Lee",   "opted_out",  True,  "data:image/png;base64,MOCK_JORDAN"),
-        ("Alex Rivera",  "opted_out",  True,  "data:image/png;base64,MOCK_ALEX"),
-        ("Sam Park",     "opted_out",  True,  "data:image/png;base64,MOCK_SAM"),
+        ("Maya Chen",    "opted_out",  True,  None),
+        ("Jordan Lee",   "opted_out",  True,  None),
+        ("Alex Rivera",  "opted_out",  True,  None),
+        ("Sam Park",     "opted_out",  True,  None),
         ("Taylor Swift", "consented",  False, None),
         ("Chris Doe",    "consented",  False, None),
     ]
@@ -69,19 +69,16 @@ def seed_database(db: Connection) -> dict:
     insert_detection(
         db, photo_objs[0].id, attendee_ids["Maya Chen"], "Maya Chen",
         confidence=91, redaction_status="auto_blurred", manual_review_required=False,
-        reference_photo_url="data:image/png;base64,MOCK_MAYA",
         bounding_box="[100, 100, 250, 250]",
     )
     insert_detection(
         db, photo_objs[0].id, attendee_ids["Jordan Lee"], "Jordan Lee",
         confidence=63, redaction_status="pending_review", manual_review_required=True,
-        reference_photo_url="data:image/png;base64,MOCK_JORDAN",
         bounding_box="[400, 150, 200, 200]",
     )
     insert_detection(
         db, photo_objs[0].id, attendee_ids["Sam Park"], "Sam Park",
         confidence=45, redaction_status="pending_review", manual_review_required=True,
-        reference_photo_url="data:image/png;base64,MOCK_SAM",
         bounding_box="[700, 200, 180, 180]",
     )
 
@@ -89,13 +86,11 @@ def seed_database(db: Connection) -> dict:
     insert_detection(
         db, photo_objs[1].id, attendee_ids["Alex Rivera"], "Alex Rivera",
         confidence=78, redaction_status="auto_blurred", manual_review_required=True,
-        reference_photo_url="data:image/png;base64,MOCK_ALEX",
         bounding_box="[150, 300, 220, 220]",
     )
     insert_detection(
         db, photo_objs[1].id, attendee_ids["Maya Chen"], "Maya Chen",
         confidence=95, redaction_status="auto_blurred", manual_review_required=False,
-        reference_photo_url="data:image/png;base64,MOCK_MAYA",
         bounding_box="[500, 320, 210, 210]",
     )
 

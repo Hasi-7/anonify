@@ -60,18 +60,90 @@ class TestAttendeeAPI:
         resp = client.post("/events", json={"name": "Ev", "organizer_id": "org"})
         return resp.get_json()["id"]
 
+    # Minimal 1×1 PNG — valid base64 so _save_reference_photo writes a real file.
+    _TINY_PNG_B64 = (
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwADhQGAWjR9"
+        "awAAAABJRU5ErkJggg=="
+    )
+
     def test_submit_attendee(self, client):
         eid = self._create_event(client)
         resp = client.post(f"/events/{eid}/attendees", json={
             "name": "Maya Chen",
             "consent_status": "opted_out",
             "opted_out": True,
-            "reference_photo_url": "data:image/png;base64,MOCK",
+            "reference_photo_url": f"data:image/png;base64,{self._TINY_PNG_B64}",
         })
         assert resp.status_code == 201
         data = resp.get_json()
         assert data["name"] == "Maya Chen"
         assert data["opted_out"] is True
+        assert isinstance(data["reference_photo_url"], str)
+        assert data["reference_photo_url"].startswith("/uploads/attendees/")
+
+        serve_resp = client.get(data["reference_photo_url"])
+        assert serve_resp.status_code == 200
+
+    def test_submit_attendee_via_reference_image_data_url(self, client):
+        eid = self._create_event(client)
+        resp = client.post(f"/events/{eid}/attendees", json={
+            "name": "Soo Park",
+            "consent_status": "opted_out",
+            "opted_out": True,
+            "reference_image_data_url": f"data:image/png;base64,{self._TINY_PNG_B64}",
+        })
+        assert resp.status_code == 201
+        data = resp.get_json()
+        assert data["reference_photo_url"].startswith("/uploads/attendees/")
+        assert client.get(data["reference_photo_url"]).status_code == 200
+
+    def test_submit_attendee_via_camelcase_alias(self, client):
+        eid = self._create_event(client)
+        resp = client.post(f"/events/{eid}/attendees", json={
+            "name": "Lin Wei",
+            "consent_status": "opted_out",
+            "opted_out": True,
+            "referenceImageDataUrl": f"data:image/png;base64,{self._TINY_PNG_B64}",
+        })
+        assert resp.status_code == 201
+        data = resp.get_json()
+        assert data["reference_photo_url"].startswith("/uploads/attendees/")
+
+    def test_reference_photo_url_not_stored_as_base64(self, client):
+        eid = self._create_event(client)
+        resp = client.post(f"/events/{eid}/attendees", json={
+            "name": "Test User",
+            "consent_status": "opted_out",
+            "opted_out": True,
+            "reference_image_data_url": f"data:image/png;base64,{self._TINY_PNG_B64}",
+        })
+        assert resp.status_code == 201
+        url = resp.get_json()["reference_photo_url"]
+        assert url is not None
+        assert not url.startswith("data:")
+
+    def test_list_opted_out_shows_photo_path(self, client):
+        eid = self._create_event(client)
+        client.post(f"/events/{eid}/attendees", json={
+            "name": "Amy",
+            "consent_status": "opted_out",
+            "opted_out": True,
+            "reference_image_data_url": f"data:image/png;base64,{self._TINY_PNG_B64}",
+        })
+        data = client.get(f"/events/{eid}/attendees?opted_out=true").get_json()
+        assert len(data) == 1
+        assert data[0]["reference_photo_url"].startswith("/uploads/attendees/")
+
+    def test_submit_attendee_invalid_photo_stored_as_null(self, client):
+        eid = self._create_event(client)
+        resp = client.post(f"/events/{eid}/attendees", json={
+            "name": "Jae Kim",
+            "consent_status": "opted_out",
+            "opted_out": True,
+            "reference_photo_url": "not-a-data-url",
+        })
+        assert resp.status_code == 201
+        assert resp.get_json()["reference_photo_url"] is None
 
     def test_submit_to_nonexistent_event(self, client):
         resp = client.post("/events/9999/attendees", json={
@@ -212,6 +284,43 @@ class TestOverviewAPI:
         assert resp.status_code == 404
 
 
+class TestAttendeePhotoAliases:
+    """Backend accepts multiple field name conventions for the reference photo."""
+
+    _TINY_PNG_B64 = (
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwADhQGAWjR9"
+        "awAAAABJRU5ErkJggg=="
+    )
+
+    def _create_event(self, client):
+        return client.post("/events", json={"name": "Ev", "organizer_id": "org"}).get_json()["id"]
+
+    def test_reference_image_data_url_alias(self, client):
+        eid = self._create_event(client)
+        resp = client.post(f"/events/{eid}/attendees", json={
+            "name": "Alias Test",
+            "consent_status": "opted_out",
+            "opted_out": True,
+            "reference_image_data_url": f"data:image/png;base64,{self._TINY_PNG_B64}",
+        })
+        assert resp.status_code == 201
+        data = resp.get_json()
+        assert data["reference_photo_url"] is not None
+        assert data["reference_photo_url"].startswith("/uploads/attendees/")
+
+    def test_non_data_url_stored_as_null(self, client):
+        """A served path passed as reference_photo_url should not be re-saved."""
+        eid = self._create_event(client)
+        resp = client.post(f"/events/{eid}/attendees", json={
+            "name": "Path Test",
+            "consent_status": "opted_out",
+            "opted_out": True,
+            "reference_photo_url": "/uploads/attendees/existing.png",
+        })
+        assert resp.status_code == 201
+        assert resp.get_json()["reference_photo_url"] is None
+
+
 class TestSeedAPI:
     def test_seed(self, client):
         resp = client.post("/seed")
@@ -224,3 +333,23 @@ class TestSeedAPI:
         resp = client.post("/seed")
         data = resp.get_json()
         assert data["seeded"] is False
+
+    def test_seed_no_mock_base64_strings(self, client):
+        """Seeded attendees must not store fake MOCK_* data URLs in the DB."""
+        client.post("/seed")
+
+        from backend.db import get_db
+        with client.application.app_context():
+            db = get_db()
+            rows = db.execute("SELECT name, reference_photo_url FROM attendees").fetchall()
+            for row in rows:
+                url = row["reference_photo_url"]
+                assert url is None or url.startswith("/uploads/"), (
+                    f"Attendee {row['name']!r} has invalid reference_photo_url: {url!r}"
+                )
+            det_rows = db.execute("SELECT attendee_name, reference_photo_url FROM detections").fetchall()
+            for row in det_rows:
+                url = row["reference_photo_url"]
+                assert url is None or url.startswith("/uploads/"), (
+                    f"Detection for {row['attendee_name']!r} has invalid reference_photo_url: {url!r}"
+                )

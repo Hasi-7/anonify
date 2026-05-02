@@ -14,6 +14,7 @@ import {
   getEventPhotos,
   getOptOutAttendees
 } from "@/lib/api";
+import { BACKEND_URL } from "@/lib/api/backend-client";
 import {
   attendees,
   auditLog,
@@ -170,7 +171,8 @@ export function AnonifyExperience() {
             submitted: formatTime(attendee.submitted_at),
             status: attendee.consent_status,
             referenceHue: (index * 57 + 180) % 360,
-            confidenceNote: attendee.reference_photo_url ? "Reference photo submitted" : "No reference photo"
+            confidenceNote: attendee.reference_photo_url ? "Reference photo submitted" : "No reference photo",
+            referencePhotoUrl: attendee.reference_photo_url ?? null,
           }))
         );
       }
@@ -639,7 +641,9 @@ function PhotoReview({
   );
 }
 
-function PrivacyListPanel({ attendees }: { attendees: Attendee[] }) {
+type OrganizerAttendee = Attendee & { referencePhotoUrl?: string | null };
+
+function PrivacyListPanel({ attendees }: { attendees: OrganizerAttendee[] }) {
   return (
     <section className="workspace-panel full-panel">
       <div className="panel-heading">
@@ -652,13 +656,21 @@ function PrivacyListPanel({ attendees }: { attendees: Attendee[] }) {
       <div className="privacy-grid">
         {attendees.map((attendee) => (
           <article className="privacy-card" key={attendee.id}>
-            <div
-              className="reference-avatar"
-              style={{ background: `linear-gradient(135deg, hsl(${attendee.referenceHue} 78% 78%), hsl(${attendee.referenceHue} 78% 42%))` }}
-              aria-hidden="true"
-            >
-              <span />
-            </div>
+            {attendee.referencePhotoUrl ? (
+              <img
+                className="reference-avatar"
+                src={attendee.referencePhotoUrl.startsWith("/") ? `${BACKEND_URL}${attendee.referencePhotoUrl}` : attendee.referencePhotoUrl}
+                alt={`Reference photo for ${attendee.name}`}
+              />
+            ) : (
+              <div
+                className="reference-avatar"
+                style={{ background: `linear-gradient(135deg, hsl(${attendee.referenceHue} 78% 78%), hsl(${attendee.referenceHue} 78% 42%))` }}
+                aria-hidden="true"
+              >
+                <span />
+              </div>
+            )}
             <div>
               <strong>{attendee.name}</strong>
               <small>{attendee.email || "Public attendee submission"}</small>
