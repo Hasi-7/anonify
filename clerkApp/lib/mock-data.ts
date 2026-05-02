@@ -61,7 +61,7 @@ export type AuditLogEntry = {
 export const events: EventSummary[] = [
   {
     id: "e1",
-    name: "HuskyHack Demo Day",
+    name: "HuskyHack",
     date: "May 2, 2026",
     key: "HUSKY-42F7",
     attendees: 148,
@@ -73,7 +73,7 @@ export const events: EventSummary[] = [
   },
   {
     id: "e2",
-    name: "Northeastern Founder Night",
+    name: "Northeastern Festival",
     date: "May 9, 2026",
     key: "FND-X4Q8",
     attendees: 92,
@@ -85,7 +85,7 @@ export const events: EventSummary[] = [
   },
   {
     id: "e3",
-    name: "AI Ethics Poster Walk",
+    name: "U18 Soccer Tournament",
     date: "May 17, 2026",
     key: "AIE-P9V1",
     attendees: 64,
@@ -216,7 +216,7 @@ export const auditLog: AuditLogEntry[] = [
     id: "l4",
     time: "10:55 AM",
     actor: "Organizer",
-    action: "Shared attendee opt-out link and QR code.",
+    action: "Shared attendee event-key link.",
     tone: "muted"
   }
 ];

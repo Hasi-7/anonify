@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">Anonify neutral face mark</title>
+  <defs>
+    <radialGradient id="faceGlow" cx="34%" cy="27%" r="72%">
+      <stop offset="0" stop-color="#fff6a8"/>
+      <stop offset=".48" stop-color="#f9d34d"/>
+      <stop offset="1" stop-color="#e49a21"/>
+    </radialGradient>
+    <linearGradient id="ringGradient" x1="82" x2="430" y1="82" y2="430" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1b5b2a"/>
+      <stop offset="1" stop-color="#9fc58e"/>
+    </linearGradient>
+  </defs>
+  <circle cx="256" cy="256" r="230" fill="url(#ringGradient)"/>
+  <circle cx="256" cy="256" r="199" fill="url(#faceGlow)"/>
+  <circle cx="186" cy="214" r="24" fill="#164f25"/>
+  <circle cx="326" cy="214" r="24" fill="#164f25"/>
+  <path d="M174 332h164" fill="none" stroke="#164f25" stroke-linecap="round" stroke-width="34"/>
+  <circle cx="174" cy="276" r="25" fill="#f47f84" opacity=".48"/>
+  <circle cx="338" cy="276" r="25" fill="#f47f84" opacity=".48"/>
+</svg>

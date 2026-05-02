@@ -2,6 +2,8 @@
 
 import { UserButton } from "@clerk/nextjs";
 import { ChangeEvent, ReactElement, SVGProps, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { BrandLogo } from "@/components/brand-logo";
 import {
   adaptEvent,
   adaptEventOverview,
@@ -65,6 +67,8 @@ type OrganizerPhoto = EventPhoto & {
   redacted: boolean;
 };
 
+type OrganizerTab = "intake" | "privacy" | "audit";
+
 const statusCopy: Record<PhotoStatus, string> = {
   not_processed: "Queued",
   processing: "Processing",
@@ -103,6 +107,7 @@ const toReviewFigures = (model: PhotoReviewModel): Figure[] =>
 
 export function AnonifyExperience() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const singleDownloadRef = useRef<HTMLAnchorElement | null>(null);
   const [eventList, setEventList] = useState(events);
   const [selectedEventId, setSelectedEventId] = useState(events[0]?.id ?? "");
   const [photoList, setPhotoList] = useState<OrganizerPhoto[]>(
@@ -113,6 +118,8 @@ export function AnonifyExperience() {
   const [threshold, setThreshold] = useState(65);
   const [uploadMessage, setUploadMessage] = useState("Upload event photos to add them to this workspace.");
   const [creatingEvent, setCreatingEvent] = useState(false);
+  const [activeTab, setActiveTab] = useState<OrganizerTab>("intake");
+  const [exportMessage, setExportMessage] = useState("Anonymize photos to enable exports.");
 
   useEffect(() => {
     let cancelled = false;
@@ -248,6 +255,44 @@ export function AnonifyExperience() {
           : photo
       )
     );
+    setExportMessage(`${selectedPhoto.name} is ready to export.`);
+  };
+
+  const anonymizeAllPhotos = () => {
+    setPhotoList((currentPhotos) =>
+      currentPhotos.map((photo) => ({
+        ...photo,
+        redacted: true,
+        status: photo.figures.some((figure) => figure.match) ? "match" : photo.status === "manual_review" ? "manual_review" : "no_match"
+      }))
+    );
+    setExportMessage("Batch anonymization complete. Export is ready.");
+  };
+
+  const exportSelectedPhoto = () => {
+    if (!selectedPhoto?.redacted) {
+      setExportMessage("Anonymize the selected photo before exporting.");
+      return;
+    }
+
+    if (selectedPhoto.dataUrl && singleDownloadRef.current) {
+      singleDownloadRef.current.href = selectedPhoto.dataUrl;
+      singleDownloadRef.current.download = `anonified-${selectedPhoto.name}`;
+      singleDownloadRef.current.click();
+      setExportMessage(`${selectedPhoto.name} downloaded.`);
+      return;
+    }
+
+    setExportMessage(`${selectedPhoto.name} is queued for export in the demo bundle.`);
+  };
+
+  const exportBatch = () => {
+    const readyCount = photoList.filter((photo) => photo.redacted).length;
+    setExportMessage(
+      readyCount > 0
+        ? `${readyCount} anonymized image${readyCount === 1 ? "" : "s"} queued for batch export.`
+        : "Anonymize at least one photo before exporting."
+    );
   };
 
   const handleUploads = (event: ChangeEvent<HTMLInputElement>) => {
@@ -296,13 +341,7 @@ export function AnonifyExperience() {
   return (
     <main className="organizer-page">
       <aside className="organizer-sidebar" aria-label="Organizer events">
-        <div className="brand-lockup">
-          <span className="brand-mark" aria-hidden="true">a</span>
-          <div>
-            <strong>Anonify</strong>
-            <small>event photo privacy</small>
-          </div>
-        </div>
+        <BrandLogo subtitle="event photo privacy" />
 
         <div className="sidebar-section">
           <p className="section-label">Events</p>
@@ -354,6 +393,7 @@ export function AnonifyExperience() {
             <a className="link-button" href={`/attend?event=${selectedEvent.key}`}>
               Attendee link
             </a>
+            <LinkHome />
             <UserButton />
           </div>
         </header>
@@ -365,8 +405,21 @@ export function AnonifyExperience() {
           <Metric label="Needs review" value={reviewCount} tone="amber" />
         </section>
 
-        <section className="organizer-grid">
-          <div className="workspace-panel">
+        <nav className="dashboard-tabs" aria-label="Organizer dashboard sections">
+          <button className={activeTab === "intake" ? "active" : ""} onClick={() => setActiveTab("intake")} type="button">
+            Photo Intake
+          </button>
+          <button className={activeTab === "privacy" ? "active" : ""} onClick={() => setActiveTab("privacy")} type="button">
+            Privacy List
+          </button>
+          <button className={activeTab === "audit" ? "active" : ""} onClick={() => setActiveTab("audit")} type="button">
+            Security Audit Log
+          </button>
+        </nav>
+
+        {activeTab === "intake" ? (
+          <section className="organizer-grid">
+            <div className="workspace-panel">
             <div className="panel-heading">
               <div>
                 <p className="section-label">Photo intake</p>
@@ -403,21 +456,35 @@ export function AnonifyExperience() {
                 </button>
               ))}
             </div>
-          </div>
+            </div>
 
-          <div className="workspace-panel review-panel">
+            <div className="workspace-panel review-panel">
             {selectedPhoto ? (
               <PhotoReview
                 attendees={optOutAttendees}
+                exportMessage={exportMessage}
+                onAnonymizeAll={anonymizeAllPhotos}
                 onAnonymize={anonymizeSelectedPhoto}
+                onExportBatch={exportBatch}
+                onExportSelected={exportSelectedPhoto}
                 photo={selectedPhoto}
                 progress={progress}
                 reviewModel={selectedPhotoReviewModel}
                 threshold={threshold / 100}
               />
             ) : null}
-          </div>
-        </section>
+            <a ref={singleDownloadRef} hidden />
+            </div>
+          </section>
+        ) : null}
+
+        {activeTab === "privacy" ? (
+          <PrivacyListPanel attendees={optOutAttendees} />
+        ) : null}
+
+        {activeTab === "audit" ? (
+          <AuditLogPanel />
+        ) : null}
       </section>
 
       {creatingEvent ? (
@@ -436,14 +503,22 @@ export function AnonifyExperience() {
 
 function PhotoReview({
   attendees,
+  exportMessage,
+  onAnonymizeAll,
   onAnonymize,
+  onExportBatch,
+  onExportSelected,
   photo,
   progress,
   reviewModel,
   threshold
 }: {
   attendees: Attendee[];
+  exportMessage: string;
+  onAnonymizeAll: () => void;
   onAnonymize: () => void;
+  onExportBatch: () => void;
+  onExportSelected: () => void;
   photo: OrganizerPhoto;
   progress: number;
   reviewModel?: PhotoReviewModel;
@@ -462,10 +537,15 @@ function PhotoReview({
           <p className="section-label">Review</p>
           <h2>{photo.name}</h2>
         </div>
-        <button className="primary-button" onClick={onAnonymize} type="button">
-          <Icon name="sparkles" size={16} />
-          Anonymize
-        </button>
+        <div className="panel-actions">
+          <button className="primary-button" onClick={onAnonymize} type="button">
+            <Icon name="sparkles" size={16} />
+            Anonymize
+          </button>
+          <button className="secondary-button" onClick={onAnonymizeAll} type="button">
+            Batch anonymize
+          </button>
+        </div>
       </div>
 
       <div className="comparison-grid" aria-label="Before and after comparison">
@@ -489,6 +569,22 @@ function PhotoReview({
         </div>
       </div>
 
+      <div className="export-card">
+        <div>
+          <p className="section-label">Export</p>
+          <strong>Export anonymized images</strong>
+          <span>{exportMessage}</span>
+        </div>
+        <div className="export-actions">
+          <button className="secondary-button" disabled={!photo.redacted} onClick={onExportSelected} type="button">
+            Single download
+          </button>
+          <button className="primary-button" onClick={onExportBatch} type="button">
+            Export Anonymized Images
+          </button>
+        </div>
+      </div>
+
       <div className="detections-list">
         <p className="section-label">Opt-out detections</p>
         {reviewModel ? <p className="helper-text">{reviewModel.confidenceWarning}</p> : null}
@@ -498,14 +594,14 @@ function PhotoReview({
           ) : (
             reviewModel.participants.map((participant) => (
               <div className="detection-row" key={participant.attendeeId}>
-                <span className={participant.reviewRequired ? "dot amber" : "dot green"} />
+                <TrafficLight confidence={participant.confidencePercent} />
                 <div>
                   <strong>{participant.attendeeName}</strong>
                   <small>
                     {participant.statusLabel} / {participant.reviewRequired ? "Manual review required" : "No manual review required"}
                   </small>
                 </div>
-                <code>{participant.confidencePercent}%</code>
+                <ConfidenceBadge confidence={participant.confidencePercent} />
               </div>
             ))
           )
@@ -518,12 +614,12 @@ function PhotoReview({
 
             return (
               <div className="detection-row" key={figure.id}>
-                <span className={needsReview ? "dot amber" : "dot green"} />
+                <TrafficLight confidence={Math.round(figure.confidence * 100)} />
                 <div>
                   <strong>{attendee?.name ?? "Unknown attendee"}</strong>
                   <small>{needsReview ? "Manual review suggested" : "Ready for automatic blur"}</small>
                 </div>
-                <code>{Math.round(figure.confidence * 100)}%</code>
+                <ConfidenceBadge confidence={Math.round(figure.confidence * 100)} />
               </div>
             );
           })
@@ -540,6 +636,97 @@ function PhotoReview({
         ))}
       </div>
     </>
+  );
+}
+
+function PrivacyListPanel({ attendees }: { attendees: Attendee[] }) {
+  return (
+    <section className="workspace-panel full-panel">
+      <div className="panel-heading">
+        <div>
+          <p className="section-label">Privacy list</p>
+          <h2>Opted-out attendees and reference images</h2>
+        </div>
+        <em className="status-badge green">{attendees.length} active opt-outs</em>
+      </div>
+      <div className="privacy-grid">
+        {attendees.map((attendee) => (
+          <article className="privacy-card" key={attendee.id}>
+            <div
+              className="reference-avatar"
+              style={{ background: `linear-gradient(135deg, hsl(${attendee.referenceHue} 78% 78%), hsl(${attendee.referenceHue} 78% 42%))` }}
+              aria-hidden="true"
+            >
+              <span />
+            </div>
+            <div>
+              <strong>{attendee.name}</strong>
+              <small>{attendee.email || "Public attendee submission"}</small>
+              <p>{attendee.confidenceNote}</p>
+            </div>
+            <em className="status-badge green">Opted out</em>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function AuditLogPanel() {
+  return (
+    <section className="workspace-panel full-panel">
+      <div className="panel-heading">
+        <div>
+          <p className="section-label">Security audit log</p>
+          <h2>Uploads, anonymizations, and reviews</h2>
+        </div>
+      </div>
+      <div className="audit-timeline">
+        {auditLog.map((entry) => (
+          <article className={`audit-entry ${entry.tone}`} key={entry.id}>
+            <span>{entry.time}</span>
+            <div>
+              <strong>{entry.actor}</strong>
+              <p>{entry.action}</p>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function confidenceTone(confidence: number) {
+  if (confidence >= 90) {
+    return { label: "Green (Safe)", tone: "green" };
+  }
+
+  if (confidence >= 70) {
+    return { label: "Amber (Review)", tone: "amber" };
+  }
+
+  return { label: "Red (Conflict)", tone: "red" };
+}
+
+function TrafficLight({ confidence }: { confidence: number }) {
+  const tone = confidenceTone(confidence);
+  return <span className={`dot ${tone.tone}`} aria-label={tone.label} />;
+}
+
+function ConfidenceBadge({ confidence }: { confidence: number }) {
+  const tone = confidenceTone(confidence);
+  return (
+    <span className={`confidence-badge ${tone.tone}`}>
+      {tone.label} {confidence}%
+    </span>
+  );
+}
+
+function LinkHome() {
+  return (
+    <Link className="link-button" href="/">
+      Home
+    </Link>
   );
 }
 

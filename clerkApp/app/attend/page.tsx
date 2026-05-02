@@ -11,12 +11,13 @@ import {
   useState
 } from "react";
 import Link from "next/link";
+import { BrandLogo } from "@/components/brand-logo";
 import { adaptEvent, getEventByKey, submitAttendee } from "@/lib/api";
 import { events, type EventSummary } from "@/lib/mock-data";
 
 type ConsentChoice = "opt-in" | "opt-out";
-type EntrySource = "search" | "qr-link" | "qr-camera";
 type Step = "lookup" | "consent" | "reference" | "submitted";
+type CaptureState = "idle" | "ready" | "counting" | "valid" | "invalid" | "captured";
 
 type SubmissionRecord = {
   id: string;
@@ -25,8 +26,18 @@ type SubmissionRecord = {
   eventName: string;
   name: string;
   photoDataUrl?: string;
-  source: EntrySource;
   submittedAt: string;
+};
+
+type FaceBox = {
+  height: number;
+  width: number;
+  x: number;
+  y: number;
+};
+
+type FaceDetectionResult = {
+  boundingBox: DOMRectReadOnly | FaceBox;
 };
 
 const STORAGE_KEY = "anonify-attendee-submissions";
@@ -62,35 +73,38 @@ const getUrlEventKey = () => {
   }
 
   const url = new URL(window.location.href);
-  return (
-    url.searchParams.get("event") ??
-    url.searchParams.get("key") ??
-    url.searchParams.get("eventKey") ??
-    url.hash.replace(/^#\/?/, "")
-  );
+  return url.searchParams.get("event") ?? url.searchParams.get("key") ?? url.searchParams.get("eventKey") ?? "";
 };
 
 export default function AttendPage() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const qrCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const qrTimerRef = useRef<number | null>(null);
+  const previousFrameRef = useRef<Uint8ClampedArray | null>(null);
+  const invalidCaptureRef = useRef(false);
+  const countdownTimerRef = useRef<number | null>(null);
+  const validationTimerRef = useRef<number | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const videoReadyRef = useRef(false);
 
   const [step, setStep] = useState<Step>("lookup");
   const [eventKey, setEventKey] = useState("");
   const [eventList, setEventList] = useState<EventSummary[]>(events);
   const [selectedEvent, setSelectedEvent] = useState<EventSummary | null>(events[0] ?? null);
-  const [source, setSource] = useState<EntrySource>("search");
-  const [lookupMessage, setLookupMessage] = useState("Scan a QR code or search for your event.");
+  const [lookupMessage, setLookupMessage] = useState("Search by event name or event key to join.");
   const [fullName, setFullName] = useState("");
   const [consent, setConsent] = useState<ConsentChoice>("opt-out");
   const [photoDataUrl, setPhotoDataUrl] = useState("");
   const [stream, setStream] = useState<MediaStream | null>(null);
-  const [cameraMode, setCameraMode] = useState<"reference" | "qr" | null>(null);
   const [cameraStatus, setCameraStatus] = useState("Camera is idle.");
+  const [captureState, setCaptureState] = useState<CaptureState>("idle");
   const [countdown, setCountdown] = useState(0);
   const [isCountingDown, setIsCountingDown] = useState(false);
+  const [videoReady, setVideoReady] = useState(false);
+  const [faceInside, setFaceInside] = useState(false);
+  const [movementScore, setMovementScore] = useState(0);
   const [submission, setSubmission] = useState<SubmissionRecord | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
   const matches = useMemo(() => {
     const normalized = normalizeKey(eventKey);
@@ -106,39 +120,64 @@ export default function AttendPage() {
   }, [eventKey, eventList]);
 
   const stopCamera = useCallback(() => {
-    stream?.getTracks().forEach((track) => track.stop());
+    if (countdownTimerRef.current) {
+      window.clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+
+    if (validationTimerRef.current) {
+      window.clearInterval(validationTimerRef.current);
+      validationTimerRef.current = null;
+    }
+
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
     setStream(null);
-    setCameraMode(null);
     setCountdown(0);
     setIsCountingDown(false);
-
-    if (qrTimerRef.current) {
-      window.clearInterval(qrTimerRef.current);
-      qrTimerRef.current = null;
-    }
+    setFaceInside(false);
+    setVideoReady(false);
+    videoReadyRef.current = false;
+    previousFrameRef.current = null;
 
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
-  }, [stream]);
+  }, []);
 
   useEffect(() => {
     if (!videoRef.current || !stream) {
       return;
     }
 
-    videoRef.current.srcObject = stream;
-    void videoRef.current.play().catch(() => setCameraStatus("Tap the preview to start the camera."));
+    const video = videoRef.current;
+    video.srcObject = stream;
+
+    const markReady = () => {
+      videoReadyRef.current = true;
+      setVideoReady(true);
+      setFaceInside(false);
+      setCaptureState("ready");
+      setCameraStatus("Camera ready. Center your face in the frame.");
+      void video.play().catch(() => setCameraStatus("Tap the preview to start the camera."));
+    };
+
+    video.addEventListener("loadedmetadata", markReady, { once: true });
+    void video.play().catch(() => setCameraStatus("Tap the preview to start the camera."));
+
+    return () => {
+      video.removeEventListener("loadedmetadata", markReady);
+    };
   }, [stream]);
 
   useEffect(() => () => stopCamera(), [stopCamera]);
 
-  const chooseEvent = useCallback((event: EventSummary, entrySource: EntrySource = "search") => {
+  const chooseEvent = useCallback((event: EventSummary) => {
     stopCamera();
     setSelectedEvent(event);
     setEventKey(event.key);
-    setSource(entrySource);
     setLookupMessage(`${event.name} selected.`);
+    setSubmitError("");
     setStep("consent");
   }, [stopCamera]);
 
@@ -172,13 +211,12 @@ export default function AttendPage() {
         }
 
         setEventKey(formatKey(urlKey));
-        setSource("qr-link");
 
         if (event) {
-          chooseEvent(event, "qr-link");
-          setLookupMessage(`${event.name} matched from the QR link.`);
+          chooseEvent(event);
+          setLookupMessage(`${event.name} matched from the event link.`);
         } else {
-          setLookupMessage("That QR link did not match a known event.");
+          setLookupMessage("That event link did not match a known event.");
         }
       })();
     }, 0);
@@ -195,97 +233,134 @@ export default function AttendPage() {
     const match = (await lookupBackendEvent(eventKey)) ?? findEvent(eventKey, eventList);
 
     if (!match) {
-      setLookupMessage("No event found for that key.");
+      setLookupMessage("No event found for that key or name.");
       setStep("lookup");
       return;
     }
 
-    chooseEvent(match, "search");
+    chooseEvent(match);
   };
 
-  const openCamera = async (mode: "reference" | "qr") => {
+  const openCamera = async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
-      setCameraStatus("Camera is unavailable in this browser.");
+      setCameraStatus("Camera is unavailable in this browser. Try desktop Chrome, Edge, or a mobile browser.");
+      setCaptureState("invalid");
       return;
     }
 
     try {
       stopCamera();
-      setCameraStatus(mode === "qr" ? "Opening QR scanner..." : "Opening camera...");
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: {
-          facingMode: mode === "qr" ? { ideal: "environment" } : { ideal: "user" },
-          height: { ideal: 960 },
-          width: { ideal: 1280 }
-        }
-      });
+      setCameraStatus("Opening camera...");
+      setCaptureState("idle");
+      setVideoReady(false);
+      let mediaStream: MediaStream;
 
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            facingMode: { ideal: "user" },
+            height: { ideal: 960 },
+            width: { ideal: 1280 }
+          }
+        });
+      } catch {
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: true
+        });
+      }
+
+      streamRef.current = mediaStream;
       setStream(mediaStream);
-      setCameraMode(mode);
-      setCameraStatus(mode === "qr" ? "Point the camera at the event QR code." : "Camera ready.");
+      setCameraStatus("Camera warming up...");
     } catch {
       setCameraStatus("Camera access needs permission or HTTPS.");
+      setCaptureState("invalid");
     }
   };
 
-  useEffect(() => {
-    if (cameraMode !== "qr" || !stream) {
-      return;
+  const measureFrame = useCallback(async () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+
+    if (!video || !canvas || video.readyState < 2) {
+      return { inside: false, movement: 1 };
     }
 
-    qrTimerRef.current = window.setInterval(async () => {
-      const video = videoRef.current;
-      const canvas = qrCanvasRef.current;
+    const sampleWidth = 96;
+    const sampleHeight = 72;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
 
-      if (!video || !canvas || video.readyState < 2) {
-        return;
+    if (!context) {
+      return { inside: false, movement: 1 };
+    }
+
+    canvas.width = sampleWidth;
+    canvas.height = sampleHeight;
+    context.drawImage(video, 0, 0, sampleWidth, sampleHeight);
+    const frame = context.getImageData(0, 0, sampleWidth, sampleHeight).data;
+    const previous = previousFrameRef.current;
+    let movement = 0;
+
+    if (previous) {
+      let diff = 0;
+      for (let index = 0; index < frame.length; index += 16) {
+        diff += Math.abs(frame[index] - previous[index]);
       }
+      movement = Math.min(diff / (frame.length / 16) / 42, 1);
+    }
 
-      const detectorConstructor = (window as unknown as {
-        BarcodeDetector?: new (options: { formats: string[] }) => {
-          detect: (source: HTMLCanvasElement) => Promise<Array<{ rawValue: string }>>;
-        };
-      }).BarcodeDetector;
+    previousFrameRef.current = new Uint8ClampedArray(frame);
 
-      if (!detectorConstructor) {
-        setCameraStatus("Live QR scanning is unavailable here. Use the event key search.");
-        return;
-      }
+    let inside = false;
+    const detectorConstructor = (window as unknown as {
+      FaceDetector?: new () => {
+        detect: (source: HTMLVideoElement) => Promise<FaceDetectionResult[]>;
+      };
+    }).FaceDetector;
 
-      canvas.width = video.videoWidth || 640;
-      canvas.height = video.videoHeight || 480;
-      canvas.getContext("2d")?.drawImage(video, 0, 0, canvas.width, canvas.height);
-
+    if (detectorConstructor) {
       try {
-        const detector = new detectorConstructor({ formats: ["qr_code"] });
-        const codes = await detector.detect(canvas);
-        const rawValue = codes[0]?.rawValue;
-
-        if (!rawValue) {
-          return;
-        }
-
-        const parsed = rawValue.includes("?") ? new URL(rawValue).searchParams.get("event") ?? rawValue : rawValue;
-        const event = findEvent(parsed, eventList);
-
-        if (event) {
-          chooseEvent(event, "qr-camera");
+        const faces = await new detectorConstructor().detect(video);
+        const face = faces[0]?.boundingBox;
+        if (!face) {
+          inside = false;
         } else {
-          setCameraStatus("QR scanned, but the event key was not recognized.");
+          const faceLeft = face.x;
+          const faceRight = face.x + face.width;
+          const faceTop = face.y;
+          const faceBottom = face.y + face.height;
+          const gridLeft = video.videoWidth * 0.18;
+          const gridRight = video.videoWidth * 0.82;
+          const gridTop = video.videoHeight * 0.1;
+          const gridBottom = video.videoHeight * 0.88;
+          inside = faceLeft >= gridLeft && faceRight <= gridRight && faceTop >= gridTop && faceBottom <= gridBottom;
         }
       } catch {
-        setCameraStatus("QR scanning paused. You can still search by event key.");
+        inside = false;
       }
-    }, 900);
+    } else {
+      // Shape Detection is not available in every browser. Fall back to requiring
+      // a stable, non-blank camera feed so capture still works on Safari/Firefox.
+      let lumaTotal = 0;
+      let lumaSquaredTotal = 0;
+      let samples = 0;
 
-    return () => {
-      if (qrTimerRef.current) {
-        window.clearInterval(qrTimerRef.current);
-        qrTimerRef.current = null;
+      for (let index = 0; index < frame.length; index += 16) {
+        const luma = frame[index] * 0.299 + frame[index + 1] * 0.587 + frame[index + 2] * 0.114;
+        lumaTotal += luma;
+        lumaSquaredTotal += luma * luma;
+        samples += 1;
       }
-    };
-  }, [cameraMode, chooseEvent, eventList, stream]);
+
+      const mean = lumaTotal / samples;
+      const variance = lumaSquaredTotal / samples - mean * mean;
+      inside = mean > 20 && mean < 238 && variance > 55;
+    }
+
+    return { inside, movement };
+  }, []);
 
   const captureReference = useCallback(() => {
     const video = videoRef.current;
@@ -293,6 +368,7 @@ export default function AttendPage() {
 
     if (!video || !canvas || video.readyState < 2) {
       setCameraStatus("Camera is still warming up.");
+      setCaptureState("invalid");
       return;
     }
 
@@ -302,30 +378,64 @@ export default function AttendPage() {
 
     if (!context) {
       setCameraStatus("Camera capture failed.");
+      setCaptureState("invalid");
       return;
     }
 
     canvas.width = width;
     canvas.height = height;
+    context.setTransform(1, 0, 0, 1, 0, 0);
     context.translate(width, 0);
     context.scale(-1, 1);
     context.drawImage(video, 0, 0, width, height);
     setPhotoDataUrl(canvas.toDataURL("image/jpeg", 0.88));
-    setCameraStatus("Reference photo captured.");
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    setCameraStatus("Good capture saved.");
+    setCaptureState("captured");
     stopCamera();
   }, [stopCamera]);
 
-  const startSteadyCountdown = () => {
-    if (cameraMode !== "reference" || !stream || isCountingDown) {
+  const startSteadyCountdown = useCallback(() => {
+    if (!streamRef.current || !videoReadyRef.current || isCountingDown || countdownTimerRef.current) {
+      if (!videoReadyRef.current) {
+        setCameraStatus("Camera is still warming up. Try again in a moment.");
+      }
       return;
     }
 
+    invalidCaptureRef.current = false;
+    previousFrameRef.current = null;
     setIsCountingDown(true);
     setCountdown(3);
-    setCameraStatus("Hold steady in the grid.");
+    setCaptureState("counting");
+    setCameraStatus("Hold steady in the frame.");
+
+    let failedSamples = 0;
+    validationTimerRef.current = window.setInterval(() => {
+      void (async () => {
+        const result = await measureFrame();
+        const tooMuchMovement = result.movement > 0.55;
+        setFaceInside(result.inside);
+        setMovementScore(result.movement);
+
+        if (!result.inside || tooMuchMovement) {
+          failedSamples += 1;
+          setCaptureState("invalid");
+          setCameraStatus(!result.inside ? "Please stay within the frame." : "Please hold still.");
+
+          if (failedSamples >= 99) {
+            invalidCaptureRef.current = true;
+          }
+        } else {
+          failedSamples = 0;
+          setCaptureState("valid");
+          setCameraStatus("Good position. Keep holding.");
+        }
+      })();
+    }, 260);
 
     let nextCount = 3;
-    const timer = window.setInterval(() => {
+    countdownTimerRef.current = window.setInterval(() => {
       nextCount -= 1;
 
       if (nextCount > 0) {
@@ -333,24 +443,43 @@ export default function AttendPage() {
         return;
       }
 
-      window.clearInterval(timer);
+      if (countdownTimerRef.current) {
+        window.clearInterval(countdownTimerRef.current);
+        countdownTimerRef.current = null;
+      }
+
+      if (validationTimerRef.current) {
+        window.clearInterval(validationTimerRef.current);
+        validationTimerRef.current = null;
+      }
       setCountdown(0);
       setIsCountingDown(false);
+
+      if (invalidCaptureRef.current) {
+        setCaptureState("invalid");
+        setCameraStatus("Please stay within the frame. Retake when ready.");
+        return;
+      }
+
       captureReference();
     }, 1000);
-  };
+  }, [captureReference, isCountingDown, measureFrame]);
 
   const submitConsent = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!selectedEvent || !fullName.trim()) {
+    if (isSubmitting || !selectedEvent || !fullName.trim()) {
       return;
     }
 
     if (consent === "opt-out" && !photoDataUrl) {
       setStep("reference");
+      setSubmitError("Take a reference photo before submitting your opt-out preference.");
       return;
     }
+
+    setIsSubmitting(true);
+    setSubmitError("");
 
     const record: SubmissionRecord = {
       id:
@@ -362,7 +491,6 @@ export default function AttendPage() {
       eventName: selectedEvent.name,
       name: fullName.trim(),
       photoDataUrl: consent === "opt-out" ? photoDataUrl : undefined,
-      source,
       submittedAt: new Date().toISOString()
     };
 
@@ -373,34 +501,34 @@ export default function AttendPage() {
       // Local storage is optional for the demo flow.
     }
 
-    void (async () => {
+    try {
       const backendEvent = await lookupBackendEvent(selectedEvent.key);
-      await submitAttendee(backendEvent?.id ?? selectedEvent.id, {
-        name: record.name,
-        consent_status: consent === "opt-out" ? "opted_out" : "consented",
-        opted_out: consent === "opt-out",
-        reference_photo_url: consent === "opt-out" ? photoDataUrl || null : null
-      });
-    })();
+      const backendEventId = backendEvent?.id ?? (/^\d+$/.test(selectedEvent.id) ? selectedEvent.id : null);
 
-    setSubmission(record);
-    setStep("submitted");
+      if (backendEventId) {
+        await submitAttendee(backendEventId, {
+          name: record.name,
+          consent_status: consent === "opt-out" ? "opted_out" : "consented",
+          opted_out: consent === "opt-out",
+          reference_photo_url: consent === "opt-out" ? photoDataUrl || null : null
+        });
+      }
+    } finally {
+      setSubmission(record);
+      setStep("submitted");
+      setIsSubmitting(false);
+    }
   };
 
   const canSubmit = Boolean(selectedEvent && fullName.trim() && (consent === "opt-in" || photoDataUrl));
+  const movementLabel = movementScore < 0.22 ? "Stable" : movementScore < 0.55 ? "Slight movement" : "Too much movement";
 
   return (
     <main className="attendee-page">
       <section className="attendee-shell" aria-label="Attendee consent flow">
         <header className="attendee-header">
-          <div className="brand-lockup">
-            <span className="brand-mark" aria-hidden="true">a</span>
-            <div>
-              <strong>Anonify</strong>
-              <small>attendee privacy</small>
-            </div>
-          </div>
-          <Link className="link-button" href="/sign-in">Organizer sign in</Link>
+          <BrandLogo subtitle="attendee privacy" />
+          <Link className="link-button" href="/">Back home</Link>
         </header>
 
         <div className="attendee-layout">
@@ -410,40 +538,17 @@ export default function AttendPage() {
             {step === "lookup" ? (
               <>
                 <p className="section-label">Find event</p>
-                <h1>Choose where your privacy preference applies.</h1>
+                <h1>Search and join your event.</h1>
                 <p className="helper-text">{lookupMessage}</p>
 
-                <div className="qr-panel">
-                  <div className="qr-mark" aria-hidden="true">
-                    <Icon name="qr" size={52} />
-                  </div>
-                  <div>
-                    <strong>Scan event QR</strong>
-                    <p>Use your camera when supported, or enter the event key below.</p>
-                  </div>
-                  <button className="secondary-button" onClick={() => openCamera("qr")} type="button">
-                    <Icon name="camera" size={16} />
-                    Scan
-                  </button>
-                </div>
-
-                {cameraMode === "qr" ? (
-                  <div className="camera-preview qr">
-                    <video ref={videoRef} autoPlay muted playsInline />
-                  </div>
-                ) : null}
-
-                <form className="lookup-form" onSubmit={searchEvent}>
-                  <label htmlFor="event-key">Event key or name</label>
+                <form className="lookup-form hero-search" onSubmit={searchEvent}>
+                  <label htmlFor="event-key">Event key or event name</label>
                   <div className="input-row">
                     <input
                       id="event-key"
                       autoCapitalize="characters"
                       autoComplete="off"
-                      onChange={(event) => {
-                        setEventKey(formatKey(event.target.value));
-                        setSource("search");
-                      }}
+                      onChange={(event) => setEventKey(formatKey(event.target.value))}
                       placeholder="HUSKY-42F7"
                       value={eventKey}
                     />
@@ -487,6 +592,7 @@ export default function AttendPage() {
                     className={`choice-card ${consent === "opt-in" ? "selected" : ""}`}
                     onClick={() => {
                       setConsent("opt-in");
+                      setSubmitError("");
                       setStep("consent");
                     }}
                     type="button"
@@ -501,6 +607,7 @@ export default function AttendPage() {
                     className={`choice-card ${consent === "opt-out" ? "selected" : ""}`}
                     onClick={() => {
                       setConsent("opt-out");
+                      setSubmitError("");
                       setStep("reference");
                     }}
                     type="button"
@@ -517,45 +624,75 @@ export default function AttendPage() {
                   <div className="reference-section">
                     <div className="spread">
                       <div>
-                          <strong>Steady reference photo</strong>
-                          <p>{cameraStatus}</p>
+                        <strong>Smart reference capture</strong>
+                        <p>{cameraStatus}</p>
                       </div>
                       {photoDataUrl ? (
-                        <button className="text-button" onClick={() => setPhotoDataUrl("")} type="button">
-                          Replace
+                        <button
+                          className="text-button"
+                          onClick={() => {
+                            setPhotoDataUrl("");
+                            setCaptureState("idle");
+                            setSubmitError("");
+                          }}
+                          type="button"
+                        >
+                          Retake
                         </button>
                       ) : null}
                     </div>
 
-                    <div className="camera-preview">
+                    <div className={`camera-preview capture-${captureState}`}>
                       {photoDataUrl ? (
                         <img alt="Selected reference" src={photoDataUrl} />
-                      ) : cameraMode === "reference" ? (
+                      ) : stream ? (
                         <div className="steady-camera">
-                          <video ref={videoRef} autoPlay muted playsInline />
+                          <video
+                            ref={videoRef}
+                            autoPlay
+                            muted
+                            onClick={() => void videoRef.current?.play()}
+                            playsInline
+                          />
                           <div className="camera-grid" aria-hidden="true" />
+                          <div className="capture-feedback">
+                            <span className={faceInside ? "dot green" : "dot amber"} />
+                            <strong>{faceInside ? "Face in frame" : "Center your face"}</strong>
+                            <small>{movementLabel}</small>
+                          </div>
                           {countdown > 0 ? <span className="countdown-badge">{countdown}</span> : null}
                         </div>
                       ) : (
                         <div className="camera-empty">
                           <Icon name="camera" size={36} />
-                          <span>Open camera and hold steady</span>
+                          <span>Open camera and align inside the frame</span>
                         </div>
                       )}
                     </div>
 
                     <div className="button-row">
-                      {cameraMode === "reference" ? (
-                        <button
-                          className="primary-button"
-                          disabled={isCountingDown}
-                          onClick={startSteadyCountdown}
-                          type="button"
-                        >
-                          {isCountingDown ? "Hold steady..." : "Start 3 second capture"}
-                        </button>
+                      {stream ? (
+                        <>
+                          <button
+                            className="primary-button"
+                            disabled={isCountingDown || !videoReady}
+                            onClick={startSteadyCountdown}
+                            type="button"
+                          >
+                            {isCountingDown
+                              ? "Hold steady..."
+                              : !videoReady
+                                ? "Camera warming up..."
+                                : captureState === "invalid"
+                                  ? "Retake"
+                                  : "Start 3 second capture"}
+                          </button>
+                          <button className="secondary-button" onClick={stopCamera} type="button">
+                            Close camera
+                          </button>
+                        </>
                       ) : (
-                        <button className="secondary-button" onClick={() => openCamera("reference")} type="button">
+                        <button className="secondary-button" onClick={openCamera} type="button">
                           <Icon name="camera" size={16} />
                           Use camera
                         </button>
@@ -565,10 +702,11 @@ export default function AttendPage() {
                 ) : null}
 
                 <canvas ref={canvasRef} hidden />
-                <canvas ref={qrCanvasRef} hidden />
 
-                <button className="submit-button" disabled={!canSubmit} type="submit">
-                  Submit preference
+                {submitError ? <p className="form-error" role="alert">{submitError}</p> : null}
+
+                <button className="submit-button" disabled={!canSubmit || isSubmitting} type="submit">
+                  {isSubmitting ? "Submitting..." : "Submit preference"}
                 </button>
               </form>
             ) : null}
@@ -592,6 +730,7 @@ export default function AttendPage() {
                     setPhotoDataUrl("");
                     setFullName("");
                     setSubmission(null);
+                    setCaptureState("idle");
                   }}
                   type="button"
                 >
@@ -615,7 +754,7 @@ export default function AttendPage() {
               </div>
               <div>
                 <dt>Entry</dt>
-                <dd>{source === "qr-camera" ? "QR scan" : source === "qr-link" ? "QR link" : "Search"}</dd>
+                <dd>Search</dd>
               </div>
             </dl>
           </aside>
@@ -638,7 +777,7 @@ function StepBar({ step }: { step: Step }) {
   );
 }
 
-type IconName = "camera" | "check" | "qr" | "search" | "shield";
+type IconName = "camera" | "check" | "search" | "shield";
 
 function Icon({
   name,
@@ -653,14 +792,6 @@ function Icon({
       </>
     ),
     check: <path d="M20 6 9 17l-5-5" />,
-    qr: (
-      <>
-        <rect x="3" y="3" width="7" height="7" />
-        <rect x="14" y="3" width="7" height="7" />
-        <rect x="3" y="14" width="7" height="7" />
-        <path d="M14 14h3v3h-3zM20 14v3M14 20h3M20 20v.01" />
-      </>
-    ),
     search: (
       <>
         <circle cx="11" cy="11" r="8" />
