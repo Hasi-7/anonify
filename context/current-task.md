@@ -41,11 +41,24 @@ Hacking has started. AI/Redaction mock pipeline is complete. Backend API routes,
 ## In Progress / Next
 
 - Frontend: organizer dashboard tabs, photo review UI, confidence display.
-- Integrations: Clerk setup, protected routes, Google Drive mock adapter.
 - Connect AI pipeline to Backend:
   - Integrate `processEventPhotos()` into backend API route or Next.js API layer.
   - Coordinate with frontend (Person 1) on API contract.
-  - Coordinate with integrations (Person 3) on auth middleware.
+
+## Completed (Integrations — Person 3)
+
+- Clerk middleware: UI-only auth. Skips all `/api` paths. Protects organizer UI routes.
+- API route contract system: every `route.ts` exports `apiAccess = "public" | "organizer"` and exports handlers through the matching runtime route helper.
+- Route wrappers are the runtime API auth authority: `publicApiRoute(handler)` for public routes and `organizerApiRoute(handler)` for Clerk-protected organizer routes.
+- `apiAccess` is the declared contract; the build-time validator enforces that metadata and wrapper behavior match.
+- Build-time validator (`scripts/validate-api-contracts.mjs`) blocks build if any route is missing `apiAccess`, exports an unwrapped HTTP handler, or uses the wrong wrapper for its declared access.
+- Mandatory gates: `build:safe` runs API validation before production builds, `npm run build` delegates to `build:safe`, `.githooks/pre-commit` blocks commits on validation failure, and GitHub Actions runs validation before lint/build.
+- Defensive backstop: normal direct Next build entrypoints trigger validation from `next.config.ts`, but this is not a security boundary. Unsupported custom build systems must run `npm run validate:api` explicitly.
+- ESLint import boundary blocks `@/server/integrations` outside API route handlers and server-only modules.
+- Google Drive mock adapter at `clerkApp/server/integrations/google-drive.ts` (server-only).
+- Backboard mock adapter at `clerkApp/server/integrations/backboard.ts` (server-only).
+- Example API routes: `/api/public/health`, `/api/attend/[eventKey]`, `/api/organizer/events`.
+- Docs: `docs/integrations/auth-api-integrations.md`, `docs/decisions/decisions.md` updated.
 
 ## Integration Note for Other Teams
 
@@ -58,4 +71,11 @@ The Python real blur helper remains at the root `ai_redaction/` directory and ru
 import { processEventPhotos } from "@/lib/processing/mock-processor"
 ```
 
-Returns `ProcessingSummary` with per-photo detections, confidence scores, and manual review flags. Full usage is in `docs/ai-sessions/01-mock-processing-pipeline.md`.
+Returns `ProcessingSummary` with per-photo detections, confidence scores, and manual review flags. Full usage in `docs/ai-sessions/01-mock-processing-pipeline.md`.
+
+**Integration adapters** (Drive, Backboard) live in `clerkApp/server/integrations/` and are server-only. Import them only from API route handlers or server-only modules:
+
+```typescript
+// Inside an API route handler or server-only module ONLY
+import { listEventPhotosFromDrive, generatePrivacyReviewSummary } from "@/server/integrations"
+```

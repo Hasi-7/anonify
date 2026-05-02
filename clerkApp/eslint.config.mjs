@@ -13,6 +13,29 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  {
+    files: ["**/*.{ts,tsx}"],
+    ignores: ["app/api/**/*", "server/**/*"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "@/server/integrations",
+                "@/server/integrations/*",
+                "**/server/integrations",
+                "**/server/integrations/*",
+              ],
+              message:
+                "Server integrations may only be imported from app/api route handlers or server-only modules.",
+            },
+          ],
+        },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;

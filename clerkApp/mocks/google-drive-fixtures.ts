@@ -1,0 +1,58 @@
+import type { EventPhotoLike } from "@/types/integrations"
+
+export const MOCK_GOOGLE_DRIVE_EVENT_ID = "event_demo_001"
+
+export const MOCK_GOOGLE_DRIVE_PHOTOS: EventPhotoLike[] = [
+  {
+    photoId: "drive_photo_001",
+    eventId: MOCK_GOOGLE_DRIVE_EVENT_ID,
+    fileName: "group_photo_1.jpg",
+    mimeType: "image/jpeg",
+    source: "mock",
+    status: "processed",
+    driveFileId: "mock-drive-file-001",
+    thumbnailUrl: "/mocks/images/group_photo_1-thumb.jpg",
+    webViewLink: "https://drive.google.com/mock/group_photo_1",
+    uploadedAt: "2026-05-02T12:10:00Z",
+    usedMock: true,
+  },
+  {
+    photoId: "drive_photo_002",
+    eventId: MOCK_GOOGLE_DRIVE_EVENT_ID,
+    fileName: "panel_discussion.jpg",
+    mimeType: "image/jpeg",
+    source: "mock",
+    status: "processed",
+    driveFileId: "mock-drive-file-002",
+    thumbnailUrl: "/mocks/images/panel_discussion-thumb.jpg",
+    webViewLink: "https://drive.google.com/mock/panel_discussion",
+    uploadedAt: "2026-05-02T12:18:00Z",
+    usedMock: true,
+  },
+  {
+    photoId: "drive_photo_003",
+    eventId: MOCK_GOOGLE_DRIVE_EVENT_ID,
+    fileName: "hackathon_floor.jpg",
+    mimeType: "image/jpeg",
+    source: "mock",
+    status: "manual_review",
+    driveFileId: "mock-drive-file-003",
+    thumbnailUrl: "/mocks/images/hackathon_floor-thumb.jpg",
+    webViewLink: "https://drive.google.com/mock/hackathon_floor",
+    uploadedAt: "2026-05-02T12:26:00Z",
+    usedMock: true,
+  },
+  {
+    photoId: "drive_photo_004",
+    eventId: MOCK_GOOGLE_DRIVE_EVENT_ID,
+    fileName: "awards_ceremony.jpg",
+    mimeType: "image/jpeg",
+    source: "mock",
+    status: "pending",
+    driveFileId: "mock-drive-file-004",
+    thumbnailUrl: "/mocks/images/awards_ceremony-thumb.jpg",
+    webViewLink: "https://drive.google.com/mock/awards_ceremony",
+    uploadedAt: "2026-05-02T12:34:00Z",
+    usedMock: true,
+  },
+]

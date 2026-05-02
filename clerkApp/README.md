@@ -16,6 +16,24 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Build Guardrails
+
+Use the safe build entrypoint:
+
+```bash
+npm run build:safe
+```
+
+`npm run build` delegates to the same safe path. Do not use `next build`, `npx next build`, or `node_modules/.bin/next build` as the normal workflow. Direct Next build entrypoints are treated as unsafe and trigger API contract validation from `next.config.ts` as a defensive backstop, but `next.config.ts` is not the primary security boundary.
+
+API contract validation is also enforced by `.githooks/pre-commit` and GitHub Actions. Deliberately replacing the build system is unsupported and can bypass project guardrails.
+
+API contract validation is mandatory for production builds:
+
+```bash
+npm run validate:api
+```
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.

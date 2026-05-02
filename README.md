@@ -143,6 +143,21 @@ Shared final work includes QA, demo script, screenshots, Devpost, deployment che
 8. Add optional Python helper only if it helps the demo.
 9. Replace mocks with real integrations only after the core demo works.
 
+## Next.js Build Guardrail
+
+The main Next.js app lives in `clerkApp`.
+
+Use the safe build entrypoint:
+
+```bash
+cd clerkApp
+npm run build:safe
+```
+
+`npm run build` delegates to the same safe path. Do not use `next build`, `npx next build`, or `node_modules/.bin/next build` as the normal workflow. Direct Next build entrypoints are treated as unsafe and trigger API contract validation from `next.config.ts` as a defensive backstop, but `next.config.ts` is not the primary security boundary.
+
+API contract validation is also enforced by `.githooks/pre-commit` and GitHub Actions. This is production-reasonable and team-safe for normal workflows; deliberately replacing the build system can still bypass project guardrails and should be treated as an unsupported path.
+
 ## Safety And Privacy Notes
 
 - Treat attendee consent and reference images as sensitive data.

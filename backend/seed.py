@@ -70,16 +70,19 @@ def seed_database(db: Connection) -> dict:
         db, photo_objs[0].id, attendee_ids["Maya Chen"], "Maya Chen",
         confidence=91, redaction_status="auto_blurred", manual_review_required=False,
         reference_photo_url="data:image/png;base64,MOCK_MAYA",
+        bounding_box="[100, 100, 250, 250]",
     )
     insert_detection(
         db, photo_objs[0].id, attendee_ids["Jordan Lee"], "Jordan Lee",
         confidence=63, redaction_status="pending_review", manual_review_required=True,
         reference_photo_url="data:image/png;base64,MOCK_JORDAN",
+        bounding_box="[400, 150, 200, 200]",
     )
     insert_detection(
         db, photo_objs[0].id, attendee_ids["Sam Park"], "Sam Park",
         confidence=45, redaction_status="pending_review", manual_review_required=True,
         reference_photo_url="data:image/png;base64,MOCK_SAM",
+        bounding_box="[700, 200, 180, 180]",
     )
 
     # Photo 2: panel_discussion.jpg — 2 detections
@@ -87,11 +90,13 @@ def seed_database(db: Connection) -> dict:
         db, photo_objs[1].id, attendee_ids["Alex Rivera"], "Alex Rivera",
         confidence=78, redaction_status="auto_blurred", manual_review_required=True,
         reference_photo_url="data:image/png;base64,MOCK_ALEX",
+        bounding_box="[150, 300, 220, 220]",
     )
     insert_detection(
         db, photo_objs[1].id, attendee_ids["Maya Chen"], "Maya Chen",
         confidence=95, redaction_status="auto_blurred", manual_review_required=False,
         reference_photo_url="data:image/png;base64,MOCK_MAYA",
+        bounding_box="[500, 320, 210, 210]",
     )
 
     return {
