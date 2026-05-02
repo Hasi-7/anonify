@@ -1,4 +1,3 @@
-# Do not install before hacking starts.
 # This file is for optional Python AI/redaction/helper work only.
 # Clerk is expected to be handled in Next.js.
 # Avoid adding heavy face-recognition packages until needed.

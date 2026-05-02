@@ -31,3 +31,10 @@
 - Business-logic failures from `POST /redact` return HTTP 200 with `success: false` — the TypeScript adapter treats non-2xx as network failures, so 200 ensures error details reach the caller.
 - CORS is restricted to `localhost:3000` and `localhost:3001` (Next.js dev ports); tighten before any public deployment.
 - `server.py` does not need changes when face detection is added — only the upstream coordinate source changes.
+
+## 2026-05-02 Hacking Started
+
+- Hacking has started.
+- Product implementation, app scaffolding, dependencies, UI, API routes, models, adapters, and backend logic are allowed.
+- The first implementation target is the mocked organizer event-key demo flow with dashboard tabs and mocked photo-review confidence data.
+- Real Clerk, Google Drive, Backboard.io, and AI/redaction integrations remain mock-first until the end-to-end demo works.

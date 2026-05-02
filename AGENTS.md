@@ -6,17 +6,17 @@ anonify is a privacy-first event photo redaction tool. Organizers will sign in, 
 
 ## Current Status
 
-This repository is in pre-hackathon setup only.
+Hacking has started. Product implementation is allowed.
 
-Hacking has not started. Do not build product features yet.
+Build the shortest path to a working demo first. Keep changes small, use mocks before real integrations, and avoid chasing production-grade AI or storage until the core flow works end to end.
 
-## Pre-Hackathon Rules
+## Build Rules
 
-- Do not scaffold the app before hacking starts.
-- Do not install dependencies before hacking starts.
-- Do not configure Clerk, Google Drive, Backboard.io, AI, or backend logic before hacking starts.
-- Do not create API routes, UI components, models, adapters, or feature code before hacking starts.
-- Only setup docs, guardrails, dependency manifests, and worktree scripts are allowed right now.
+- Product features, app scaffolding, API routes, UI components, models, adapters, and backend logic are now allowed.
+- Prefer mocked data, mock adapters, and simple in-repo state until the demo flow is clear.
+- Configure real Clerk, Google Drive, Backboard.io, and AI integrations only after the mocked demo path works.
+- Do not commit secrets, `.env` files, attendee images, or private consent data.
+- Keep implementation focused on the current demo task in `context/current-task.md`.
 
 ## Future Stack
 
@@ -34,7 +34,7 @@ Hacking has not started. Do not build product features yet.
 - App test command: not available yet.
 - Python helper command: not available yet.
 
-No app exists yet by design. Add real commands after hacking starts and after the app is scaffolded.
+Add real commands here after the app is scaffolded or when an existing app directory is adopted as the main app.
 
 ## Architecture Notes
 
@@ -53,7 +53,7 @@ Plan future implementation around these concepts:
 
 ## Demo-First Rule
 
-Build the shortest path to the core demo first after hacking starts:
+Build the shortest path to the core demo first:
 
 - Organizer auth boundary.
 - Event creation.
