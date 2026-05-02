@@ -69,3 +69,41 @@ export type ProcessingInput = {
   photos: EventPhoto[]
   optedOutAttendees: OptedOutAttendee[]
 }
+
+// Redaction plan types — derived from processing results.
+// These describe *what to blur and why*, not how detections were found.
+
+export type RedactionReason = "opt_out_match" | "manual_review"
+
+export type RedactionBox = {
+  x: number
+  y: number
+  width: number
+  height: number
+  reason: RedactionReason
+  confidence: number
+  attendeeId?: string
+  attendeeName?: string
+}
+
+export type RedactionPlan = {
+  photoId: string
+  eventId: string
+  originalImageUrl: string
+  boxes: RedactionBox[]
+  needsManualReview: boolean
+}
+
+// Result returned after attempting to apply a RedactionPlan to an image.
+
+export type RedactionApplyResult = {
+  photoId: string
+  eventId: string
+  originalImagePath: string
+  outputImagePath: string | null
+  boxesApplied: number
+  boxesSkipped: number
+  needsManualReview: boolean
+  success: boolean
+  error?: string
+}
