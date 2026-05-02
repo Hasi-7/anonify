@@ -3,6 +3,7 @@
 import {
   ChangeEvent,
   FormEvent,
+  ReactElement,
   SVGProps,
   useCallback,
   useEffect,
@@ -681,7 +682,7 @@ function Icon({
   size = 18,
   ...props
 }: SVGProps<SVGSVGElement> & { name: IconName; size?: number }) {
-  const paths: Record<IconName, JSX.Element> = {
+  const paths: Record<IconName, ReactElement> = {
     camera: (
       <>
         <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
