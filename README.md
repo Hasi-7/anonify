@@ -4,17 +4,17 @@ anonify is a privacy-first event photo redaction tool for hackathon event organi
 
 ## Current Status
 
-This repository is in pre-hackathon setup only.
+Hacking has started. The project is moving from setup into demo-first implementation.
 
-Hacking has not started. The app has not been scaffolded, dependencies have not been installed, and product features have not been implemented.
+The first priority is a mocked end-to-end flow before real integrations or production-grade AI/redaction work.
 
 ## Problem
 
 Event organizers often take and share photos, but attendees may not want to appear in public galleries, recaps, or social posts. anonify will help organizers collect opt-out preferences per event and review event photos so opted-out attendees can be blurred or flagged for manual review.
 
-## Future MVP Flow
+## MVP Flow
 
-After hacking starts, the target demo flow is:
+The target demo flow is:
 
 1. Organizer signs in with Clerk.
 2. Organizer creates an event.
@@ -58,11 +58,11 @@ Each detection should include a confidence value. Low or uncertain confidence sh
 
 `requirements.txt` is for optional Python AI/redaction/helper work only.
 
-Do not install Python dependencies before hacking starts. Clerk is expected to be handled in the Next.js app, not Python. Avoid adding heavy face-recognition packages until the mocked AI/redaction pipeline proves the demo needs them.
+Clerk is expected to be handled in the Next.js app, not Python. Avoid adding heavy face-recognition packages until the mocked AI/redaction pipeline proves the demo needs them.
 
 ## Worktree Workflow
 
-Worktree scripts are provided for four parallel agents after the setup commit exists:
+Worktree scripts are provided for four parallel agents:
 
 - `scripts/create-worktrees.sh`
 - `scripts/create-worktrees.ps1`
@@ -113,7 +113,7 @@ Backend owns:
 
 Integrations owns:
 
-- Clerk setup after hacking starts.
+- Clerk setup.
 - Protected organizer route boundaries.
 - Public attendee route boundaries.
 - Google Drive adapter/mock.
@@ -128,7 +128,7 @@ AI / Redaction owns:
 - Confidence scoring.
 - Manual review thresholds.
 - Original/redacted placeholder outputs.
-- Optional Python helper after hacking starts.
+- Optional Python helper.
 
 Shared final work:
 
@@ -139,9 +139,9 @@ Shared final work:
 - Deployment check.
 - Final bug fixes.
 
-## Post-Hacking-Start Implementation Sequence
+## Implementation Sequence
 
-1. Scaffold the Next.js + TypeScript app only after hacking starts.
+1. Scaffold or adopt the Next.js + TypeScript app.
 2. Add a mocked Clerk-authenticated organizer event-key demo flow.
 3. Add admin UI tabs with mocked data.
 4. Add public attendee form with event-key routing.

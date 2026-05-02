@@ -1,28 +1,33 @@
 # Current Task
 
-Pre-hackathon repo setup for anonify.
+Integrations workstream for the anonify core demo.
 
 ## Status
 
-Hacking has not started.
+Hacking has started.
 
-Do not implement features. Do not scaffold the app. Do not install dependencies.
+Product implementation is allowed. The integrations workstream is using `clerkApp/` as the current Next.js + Clerk app setup.
 
 ## Goal
 
-Prepare docs, worktrees, requirements, and task boundaries so the team can start building immediately when hacking starts.
+Set up safe integration boundaries for the demo while keeping external services mock-first until the flow works end to end.
 
-## Future First Implementation Task After Hacking Starts
+## First Implementation Task
 
-- Mocked Clerk-authenticated organizer event-key demo flow.
-- Admin UI tabs.
-- Mocked photo-review confidence data.
+- Clerk organizer authentication setup in `clerkApp/`.
+- Protected organizer route boundaries.
+- Public attendee route boundaries.
+- Google Drive adapter/mock.
+- Backboard.io adapter/mock.
+- Environment variable docs.
+- Safe missing-key behavior.
 
 ## Acceptance Criteria
 
-- Setup files exist.
-- Worktree scripts exist.
-- `requirements.txt` exists.
-- No features implemented.
-- No dependencies installed.
-- No app scaffolding created.
+- `clerkApp/` is treated as the active integration app unless the team decides otherwise.
+- Clerk provider and sign-in flow are configured without committing secrets.
+- Organizer routes are protected.
+- Public attendee routes remain accessible without accounts.
+- Missing Clerk or adapter environment variables fail clearly and safely.
+- Google Drive and Backboard.io are represented by mock adapters before real API calls.
+- Integration setup is documented for the rest of the team.
