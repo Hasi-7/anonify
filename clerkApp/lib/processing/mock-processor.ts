@@ -25,12 +25,30 @@ function processPhotoMock(
   eventId: string,
   optedOutAttendees: OptedOutAttendee[]
 ): PhotoProcessingResult {
-  const confidenceMap = MOCK_CONFIDENCE_MAP[photo.photoId] ?? {}
+  let confidenceMap = MOCK_CONFIDENCE_MAP[photo.photoId]
+  if (!confidenceMap) {
+    confidenceMap = {}
+    if (optedOutAttendees.length > 0) {
+      // Provide a default high-confidence match for newly uploaded photos
+      confidenceMap[optedOutAttendees[0].attendeeId] = 0.91
+    }
+  }
   const detections: Detection[] = []
 
   for (const attendee of optedOutAttendees) {
     const confidence = confidenceMap[attendee.attendeeId]
     if (confidence === undefined) continue
+
+    const idx = detections.length;
+    const baseW = photo.width || 400;
+    const baseH = photo.height || 300;
+    
+    // Place mock detections in a grid-like pattern in the likely "face zone"
+    // Starting at 20% left, 15% top, with staggered spacing.
+    const x = baseW * (0.2 + (idx % 3) * 0.25);
+    const y = baseH * (0.15 + Math.floor(idx / 3) * 0.2);
+    const width = baseW * 0.15;
+    const height = baseH * 0.2;
 
     const detection: Detection = {
       id: generateId("det", photo.photoId, attendee.attendeeId),
@@ -41,7 +59,7 @@ function processPhotoMock(
       confidence,
       status: getStatusFromConfidence(confidence),
       // Placeholder bounding box — real CV will supply real coordinates.
-      boundingBox: { x: 120, y: 80, width: 64, height: 80 },
+      boundingBox: { x, y, width, height },
     }
     detections.push(detection)
   }

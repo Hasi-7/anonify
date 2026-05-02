@@ -67,3 +67,14 @@ Use this directory to keep concise summaries of significant AI-assisted work.
 - Open issues: Real recognition still needs the FastAPI helper running separately on `localhost:8001`; quality depends on local model/helper readiness and attendee reference images.
 - Next actions: Start the Flask backend and AI helper together for a live demo, then submit real opt-out reference photos before uploading event photos.
 - What should be saved to the second brain: The frontend/backend/AI path is now `registerEventPhoto()` -> Flask `/process` -> local `/match-photo` -> local `/redact` -> persisted backend detections -> dashboard review model.
+
+## Push to Main & Conflict Resolution Session
+
+- **Goal**: Resolve merge conflicts and push the completed integration and AI processing changes to `main`.
+- **Files changed**: `backend/tests/test_api.py`, `clerkApp/components/anonify-experience.tsx`, `docs/ai-sessions/13-push-to-main-summary.md`, `docs/ai-sessions/README.md`.
+- **Commands run**: `git status`, `git add .`, `git rebase --continue`, `npm run build:safe`, `git push origin main`.
+- **Decisions made**: Resolved conflicts by keeping both sets of tests in the backend and merging imports in the frontend. Verified with a safe build before pushing.
+- **Tests run**: `build:safe` passed (API validation, TypeScript, and Next.js build).
+- **Open issues**: None for this push.
+- **Next actions**: Live demo walkthrough.
+- **What should be saved to the second brain**: The integration architecture and AI processing flow are now merged into `main` and verified with a build-time validation gate.

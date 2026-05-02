@@ -30,7 +30,8 @@ import {
   type Figure,
   type PhotoStatus
 } from "@/lib/mock-data";
-import { getMockPhotoReviewModel } from "@/lib/processing/photo-review-adapter";
+import { getMockPhotoReviewModel, toPhotoReviewModel } from "@/lib/processing/photo-review-adapter";
+import { processEventPhotos } from "@/lib/processing/mock-processor";
 import type { PhotoReviewModel } from "@/types/photo-review";
 
 const DEMO_EVENT_KEY = "HUSKY-42F7";
@@ -70,6 +71,8 @@ const toMockStatus = (status: string): PhotoStatus => {
 type OrganizerPhoto = EventPhoto & {
   dataUrl?: string;
   redacted: boolean;
+  width?: number;
+  height?: number;
 };
 
 type OrganizerTab = "intake" | "privacy" | "audit";
@@ -98,17 +101,21 @@ const photoReviewFixtureIds: Record<string, string> = {
 
 const toReviewFixtureId = (photoId: string) => photoReviewFixtureIds[photoId] ?? photoId;
 
-const toReviewFigures = (model: PhotoReviewModel): Figure[] =>
-  model.regions.map((region, index) => ({
+const toReviewFigures = (model: PhotoReviewModel, dimensions?: { width: number; height: number }): Figure[] => {
+  const baseW = dimensions?.width || 400;
+  const baseH = dimensions?.height || 300;
+  
+  return model.regions.map((region, index) => ({
     id: `${model.photoId}-region-${index}`,
-    x: (region.x / 400) * 100,
-    y: (region.y / 300) * 100,
-    w: (region.width / 400) * 100,
-    h: (region.height / 300) * 100,
+    x: (region.x / baseW) * 100,
+    y: (region.y / baseH) * 100,
+    w: (region.width / baseW) * 100,
+    h: (region.height / baseH) * 100,
     color: figureColors[index % figureColors.length],
     match: region.attendeeId,
     confidence: region.confidencePercent / 100
   }));
+};
 
 const readImageSize = (src: string): Promise<{ width: number; height: number } | null> =>
   new Promise((resolve) => {
@@ -227,10 +234,16 @@ export function AnonifyExperience() {
       }
 
       if (photoResult.ok && photoResult.data.length > 0) {
-        const details = await Promise.all(
+        const detailsWithSizes = await Promise.all(
           photoResult.data.map(async (photo) => {
             const detailResult = await getEventPhotoDetail(backendEvent.id, photo.id);
-            return detailResult.ok ? detailResult.data : null;
+            if (!detailResult.ok) return null;
+            
+            const detail = detailResult.data;
+            const imageUrl = detail.original_image_url || detail.redacted_image_url;
+            const size = imageUrl ? await readImageSize(imageUrl.startsWith("/") ? `${BACKEND_URL}${imageUrl}` : imageUrl) : null;
+            
+            return { detail, size };
           })
         );
 
@@ -239,9 +252,14 @@ export function AnonifyExperience() {
         }
 
         const backendPhotos: OrganizerPhoto[] = photoResult.data.map((photo, index) => {
-          const rawDetail = details[index];
+          const item = detailsWithSizes[index];
+          const rawDetail = item?.detail;
+          const imageSize = item?.size;
           const detail = rawDetail ? adaptPhotoDetail(rawDetail) : null;
           const detections = detail?.detections ?? [];
+          
+          const baseW = imageSize?.width || 400;
+          const baseH = imageSize?.height || 300;
 
           return {
             id: String(photo.id),
@@ -256,23 +274,25 @@ export function AnonifyExperience() {
             bg: index % 2 === 0 ? ["#12355b", "#6d4c41"] : ["#312e81", "#0f766e"],
             figures: detections.map((detection, detectionIndex) => ({
               id: detection.id,
-              x: detection.boundingBox?.x ?? 18 + detectionIndex * 22,
-              y: detection.boundingBox?.y ?? 32,
-              w: detection.boundingBox?.width ?? 14,
-              h: detection.boundingBox?.height ?? 42,
+              x: detection.boundingBox?.x !== undefined ? (detection.boundingBox.x / baseW) * 100 : 18 + detectionIndex * 22,
+              y: detection.boundingBox?.y !== undefined ? (detection.boundingBox.y / baseH) * 100 : 32,
+              w: detection.boundingBox?.width !== undefined ? (detection.boundingBox.width / baseW) * 100 : 14,
+              h: detection.boundingBox?.height !== undefined ? (detection.boundingBox.height / baseH) * 100 : 42,
               color: figureColors[detectionIndex % figureColors.length],
               match: detection.attendeeId,
               confidence: detection.confidenceRaw
             })),
+            width: imageSize?.width,
+            height: imageSize?.height,
             redacted: Boolean(photo.redacted_image_url)
           };
         });
 
         setReviewModelsByPhotoId((currentModels) => {
           const nextModels = { ...currentModels };
-          details.forEach((detail) => {
-            if (detail && canBuildPhotoReviewFromBackend(detail)) {
-              nextModels[String(detail.id)] = backendPhotoDetailToPhotoReviewModel(detail);
+          detailsWithSizes.forEach((item) => {
+            if (item?.detail && canBuildPhotoReviewFromBackend(detail)) {
+              nextModels[String(item.detail.id)] = backendPhotoDetailToPhotoReviewModel(item.detail);
             }
           });
           return nextModels;
@@ -548,8 +568,49 @@ export function AnonifyExperience() {
                 : photo
             )
           );
-          setUploadMessage(`${file.name} saved. Click "Run local detection" to process it.`);
-          setDetectionMessage(null);
+
+          const processed = await processEventPhoto(backendEventId, backendPhotoId, {
+            image_data_url: dataUrl,
+            original_image_url: dataUrl
+          });
+
+          if (!processed.ok) {
+            throw new Error(processed.error);
+          }
+
+          const reviewModel = normalizeReviewModelForPreview(
+            backendPhotoDetailToPhotoReviewModel(processed.data),
+            imageSize
+          );
+          const detail = adaptPhotoDetail(processed.data);
+          const detections = detail.detections;
+          const nextStatus: PhotoStatus = detections.some((detection) => detection.manualReviewRequired)
+            ? "manual_review"
+            : detections.length > 0
+              ? "match"
+              : "no_match";
+
+          setReviewModelsByPhotoId((currentModels) => ({
+            ...currentModels,
+            [backendPhotoId]: reviewModel
+          }));
+          setPhotoList((currentPhotos) =>
+            currentPhotos.map((photo) =>
+              photo.id === backendPhotoId
+                ? {
+                    ...photo,
+                    status: nextStatus,
+                    figures: toReviewFigures(reviewModel),
+                    redacted: Boolean(processed.data.redacted_image_url)
+                  }
+                : photo
+            )
+          );
+          setUploadMessage(
+            detections.length > 0
+              ? `${file.name} processed with ${detections.length} opted-out detection${detections.length === 1 ? "" : "s"}.`
+              : `${file.name} processed. No opted-out attendees were detected.`
+          );
         })().catch((error) => {
           const message = error instanceof Error ? error.message : String(error);
           setPhotoList((currentPhotos) =>
@@ -596,20 +657,7 @@ export function AnonifyExperience() {
           </button>
         </div>
 
-        <div className="threshold-card">
-          <div className="spread">
-            <span>Auto blur threshold</span>
-            <strong>{threshold}%</strong>
-          </div>
-          <input
-            aria-label="Auto blur threshold"
-            max={95}
-            min={40}
-            onChange={(event) => setThreshold(Number(event.target.value))}
-            type="range"
-            value={threshold}
-          />
-        </div>
+
       </aside>
 
       <section className="organizer-main">
@@ -777,7 +825,7 @@ function PhotoReview({
   threshold: number;
 }) {
   const reviewPhoto = useMemo(
-    () => (reviewModel ? { ...photo, figures: toReviewFigures(reviewModel) } : photo),
+    () => (reviewModel ? { ...photo, figures: toReviewFigures(reviewModel, photo.width && photo.height ? { width: photo.width, height: photo.height } : undefined) } : photo),
     [photo, reviewModel]
   );
   const matches = useMemo(() => reviewPhoto.figures.filter((figure) => figure.match), [reviewPhoto]);
@@ -928,7 +976,7 @@ function PrivacyListPanel({ attendees }: { attendees: OrganizerAttendee[] }) {
             )}
             <div>
               <strong>{attendee.name}</strong>
-              <small>{attendee.email || "Public attendee submission"}</small>
+              <small>{attendee.email}</small>
               <p>{attendee.confidenceNote}</p>
             </div>
             <em className="status-badge green">Opted out</em>
@@ -1044,10 +1092,10 @@ function PhotoPreview({
                 className="face-blur"
                 key={figure.id}
                 style={{
-                  height: `${figure.h + 8}%`,
-                  left: `${figure.x - 1}%`,
-                  top: `${figure.y - 10}%`,
-                  width: `${figure.w + 2}%`
+                  height: `${figure.h}%`,
+                  left: `${figure.x}%`,
+                  top: `${figure.y}%`,
+                  width: `${figure.w}%`
                 }}
               />
             ))

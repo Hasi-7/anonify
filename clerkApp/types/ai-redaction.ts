@@ -62,6 +62,8 @@ export type EventPhoto = {
   photoId: string
   fileName: string
   originalImageUrl: string
+  width?: number
+  height?: number
 }
 
 export type ProcessingInput = {

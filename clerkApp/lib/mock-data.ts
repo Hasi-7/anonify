@@ -102,7 +102,7 @@ export const attendees: Attendee[] = [
   {
     id: "a1",
     name: "Maya Chen",
-    email: "maya.chen@example.com",
+    email: "",
     submitted: "9:14 AM",
     status: "opted_out",
     referenceHue: 210,
@@ -111,7 +111,7 @@ export const attendees: Attendee[] = [
   {
     id: "a2",
     name: "Jordan Reyes",
-    email: "jordan.reyes@example.com",
+    email: "",
     submitted: "9:21 AM",
     status: "opted_out",
     referenceHue: 34,
@@ -120,7 +120,7 @@ export const attendees: Attendee[] = [
   {
     id: "a3",
     name: "Priya Shah",
-    email: "priya.shah@example.com",
+    email: "",
     submitted: "9:28 AM",
     status: "opted_out",
     referenceHue: 145,
@@ -129,7 +129,7 @@ export const attendees: Attendee[] = [
   {
     id: "a4",
     name: "Elliot Brooks",
-    email: "elliot.brooks@example.com",
+    email: "",
     submitted: "9:39 AM",
     status: "opted_out",
     referenceHue: 292,
