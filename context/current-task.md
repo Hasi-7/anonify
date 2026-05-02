@@ -42,7 +42,11 @@ Hacking has started. AI/Redaction mock pipeline is complete. Backend API routes,
 
 ## Integration Note for Other Teams
 
+**Important:** AI/redaction frontend imports are now available *inside* `clerkApp` using `@/` paths. Use the `clerkApp`-local AI files, not root-level copies.
+The Python real blur helper remains at the root `ai_redaction/` directory and runs separately on `localhost:8001`.
+
 ```typescript
+// Inside clerkApp
 import { processEventPhotos } from "@/lib/processing/mock-processor"
 ```
 
