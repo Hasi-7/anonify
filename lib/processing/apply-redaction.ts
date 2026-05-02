@@ -11,11 +11,12 @@ import type { RedactionPlan, RedactionApplyResult } from "../../types/ai-redacti
  *
  * 2. applyRedactionPlan()
  *    Calls the Python FastAPI helper at REDACTION_API_URL.
- *    Requires: Python helper running (`uvicorn ai_redaction.server:app`)
- *    Falls back to the mock result if the helper is unreachable.
+ *    The helper performs region-based blur only; it does not do face recognition.
+ *    Falls back safely to mock behavior if REDACTION_API_URL is missing or
+ *    the helper is unreachable.
  *
  * To enable the real implementation:
- *   Set REDACTION_API_URL (e.g. http://localhost:8000) in your .env file.
+ *   Set REDACTION_API_URL=http://localhost:8001 in your .env file.
  *   The Python helper must be running and Pillow must be installed.
  */
 
@@ -60,9 +61,8 @@ export function applyRedactionPlanMock(
 }
 
 // ---------------------------------------------------------------------------
-// Real implementation — calls Python FastAPI helper
-// TODO: implement ai_redaction/server.py (FastAPI) to expose POST /redact
-//       then set REDACTION_API_URL=http://localhost:8000 in .env
+// Real implementation — calls the Python FastAPI region-blur helper.
+// Set REDACTION_API_URL=http://localhost:8001 to enable it.
 // ---------------------------------------------------------------------------
 
 export async function applyRedactionPlan(

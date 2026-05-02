@@ -95,8 +95,8 @@ Plan JSON format (matches `RedactionPlan` camelCase shape):
 ## What Remains for Actual Image Blurring (full pipeline)
 
 1. Install Pillow: `pip install "pillow>=10.4.0"` — already in `requirements.txt`.
-2. Create `ai_redaction/server.py` — FastAPI route `POST /redact` that calls `apply_redaction_plan()`.
-3. Set `REDACTION_API_URL=http://localhost:8000` in `.env`.
+2. Run `ai_redaction/server.py` — FastAPI route `POST /redact` that calls `apply_redaction_plan()`.
+3. Set `REDACTION_API_URL=http://localhost:8001` in `.env`.
 4. Replace placeholder `redactedImageUrl` in `PhotoProcessingResult` with the real output path
    returned by `RedactionApplyResult.outputImagePath`.
 
