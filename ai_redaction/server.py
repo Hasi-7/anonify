@@ -29,8 +29,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from .apply_redaction import (
+    BLUR_PASSES,
     BLUR_RADIUS,
     PILLOW_AVAILABLE,
+    RedactionMode,
     apply_redaction_plan,
     plan_from_dict,
 )
@@ -86,7 +88,10 @@ class RedactRequest(BaseModel):
     imagePath: str
     plan: RedactionPlanIn
     outputPath: Optional[str] = None
-    blurRadius: int = Field(default=BLUR_RADIUS, ge=1, le=100)
+    blurRadius: int = Field(default=BLUR_RADIUS, ge=1, le=150)
+    blurPasses: int = Field(default=BLUR_PASSES, ge=1, le=10)
+    redactionMode: RedactionMode = "blur"
+    debugDrawBoxes: bool = False
 
 
 class RedactResponse(BaseModel):
@@ -267,6 +272,9 @@ def redact(request: RedactRequest) -> RedactResponse:
             plan=plan,
             output_path=request.outputPath,
             blur_radius=request.blurRadius,
+            blur_passes=request.blurPasses,
+            redaction_mode=request.redactionMode,
+            debug_draw_boxes=request.debugDrawBoxes,
         )
         return RedactResponse(**result.to_dict())
     except Exception as exc:  # noqa: BLE001

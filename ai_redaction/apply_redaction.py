@@ -20,17 +20,20 @@ import json
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 # Guard: Pillow is a planned dependency (requirements.txt) but may not be installed yet.
 # All public functions check PILLOW_AVAILABLE and return a clean error result instead of raising.
 try:
-    from PIL import Image, ImageFilter  # type: ignore[import]
+    from PIL import Image, ImageDraw, ImageFilter  # type: ignore[import]
     PILLOW_AVAILABLE = True
 except ImportError:
     PILLOW_AVAILABLE = False
 
-BLUR_RADIUS = 20  # Gaussian blur radius in pixels — strong enough to obscure a face region
+BLUR_RADIUS = 45  # Increased from 20 — visually obvious for demo use
+BLUR_PASSES = 3   # Multiple passes compound the effect on small regions
+
+RedactionMode = Literal["blur", "pixelate", "solid"]
 
 
 # ---------------------------------------------------------------------------
@@ -130,15 +133,41 @@ def _error_result(
 # Public API
 # ---------------------------------------------------------------------------
 
+def _apply_blur(region: "Image.Image", radius: int, passes: int) -> "Image.Image":
+    for _ in range(passes):
+        region = region.filter(ImageFilter.GaussianBlur(radius=radius))
+    return region
+
+
+def _apply_pixelate(region: "Image.Image", block_size: int = 12) -> "Image.Image":
+    w, h = region.size
+    small = region.resize(
+        (max(1, w // block_size), max(1, h // block_size)),
+        Image.NEAREST,
+    )
+    return small.resize((w, h), Image.NEAREST)
+
+
+def _apply_solid(region: "Image.Image") -> "Image.Image":
+    result = region.copy()
+    draw = ImageDraw.Draw(result)
+    draw.rectangle([(0, 0), (result.width - 1, result.height - 1)], fill=(0, 0, 0))
+    return result
+
+
 def apply_redaction_plan(
     image_path: str,
     plan: RedactionPlan,
     output_path: Optional[str] = None,
     blur_radius: int = BLUR_RADIUS,
+    blur_passes: int = BLUR_PASSES,
+    redaction_mode: RedactionMode = "blur",
+    debug_draw_boxes: bool = False,
 ) -> RedactionApplyResult:
     """
-    Blur all regions in plan.boxes within the image at image_path.
+    Apply redaction to all regions in plan.boxes within the image at image_path.
 
+    Modes: "blur" (default, multi-pass Gaussian), "pixelate", "solid" (black fill).
     - Empty plans (no boxes) return success immediately with the original path.
     - Boxes that fall entirely outside the image are counted as skipped, not errors.
     - Boxes are clamped to image bounds before cropping.
@@ -169,6 +198,7 @@ def apply_redaction_plan(
         img_width, img_height = img.size
         applied = 0
         skipped = 0
+        applied_coords: list[tuple[int, int, int, int]] = []
 
         for box in plan.boxes:
             left, top, right, bottom = _clamp_box(box, img_width, img_height)
@@ -178,9 +208,22 @@ def apply_redaction_plan(
                 continue
 
             region = img.crop((left, top, right, bottom))
-            blurred = region.filter(ImageFilter.GaussianBlur(radius=blur_radius))
-            img.paste(blurred, (left, top, right, bottom))
+
+            if redaction_mode == "pixelate":
+                processed = _apply_pixelate(region)
+            elif redaction_mode == "solid":
+                processed = _apply_solid(region)
+            else:
+                processed = _apply_blur(region, blur_radius, blur_passes)
+
+            img.paste(processed, (left, top, right, bottom))
+            applied_coords.append((left, top, right, bottom))
             applied += 1
+
+        if debug_draw_boxes and applied_coords:
+            draw = ImageDraw.Draw(img)
+            for coords in applied_coords:
+                draw.rectangle(coords, outline=(255, 0, 0), width=3)
 
         resolved_output = output_path or _default_output_path(image_path)
         img.save(resolved_output)
