@@ -1,16 +1,32 @@
 # anonify
 
-anonify is a privacy-first event photo redaction tool for hackathon event organizers.
+anonify is a privacy-first event photo redaction tool for event organizers.
 
-## Current Status
+## Repository Structure
+
+- `clerkApp/` is the canonical Next.js frontend app.
+- `backend/` is the canonical Flask + SQLite backend.
+- `ai_redaction/` is the optional Python redaction helper for real region blur.
+- Root docs and scripts coordinate the project.
 
 Hacking has started. The project is moving from setup into demo-first implementation.
 
 The first priority is a mocked end-to-end flow before real integrations or production-grade AI/redaction work.
 
-## Problem
+## Local Development
 
-Event organizers often take and share photos, but attendees may not want to appear in public galleries, recaps, or social posts. anonify will help organizers collect opt-out preferences per event and review event photos so opted-out attendees can be blurred or flagged for manual review.
+Frontend commands run from `clerkApp/`:
+
+```sh
+npm run dev
+npm run build
+npm run start
+npm run lint
+```
+
+Backend commands run from `backend/`. Follow `backend/README.md` for the Flask + SQLite setup, database initialization, and local server command.
+
+The real Python redaction helper runs separately from `ai_redaction/` on `localhost:8001` when needed. The frontend mock redaction flow does not require API keys or a Python server.
 
 ## MVP Flow
 
@@ -32,9 +48,9 @@ The target demo flow is:
 
 ## Auth Model
 
-Clerk is planned for organizer authentication only. Organizers own events and access protected dashboard routes.
+Clerk handles organizer authentication only. Organizers own events and access protected dashboard routes.
 
-Attendees do not need accounts. Public attendee submission routes should accept an event key and create event-scoped consent records.
+Attendees do not need accounts. Public attendee submission routes accept an event key and create event-scoped consent records.
 
 ## Event-Key Model
 
@@ -42,7 +58,7 @@ Each event has a unique event key. The event key routes attendee submissions to 
 
 ## Admin UI Tabs
 
-The future organizer dashboard should prioritize these tabs:
+The organizer dashboard should prioritize these tabs:
 
 - Overview.
 - Opt-Out Attendees.
@@ -50,15 +66,31 @@ The future organizer dashboard should prioritize these tabs:
 - Photo Review / Review Queue.
 - Processing Log.
 
+## AI / Redaction
+
+AI/redaction frontend integration is available inside `clerkApp` using `@/` paths:
+
+```ts
+import { processEventPhotos } from "@/lib/processing/mock-processor"
+import { createRedactionPlan } from "@/lib/processing/redaction-plan"
+import { applyRedactionPlanMock } from "@/lib/processing/apply-redaction"
+import type { RedactionPlan, Detection } from "@/types/ai-redaction"
+import { MOCK_REDACTION_PLANS, getMockRedactionPlan } from "@/mocks/redaction-plan-fixtures"
+```
+
+These imports resolve inside `clerkApp` because `@/*` maps to the app-local source tree. Use the `clerkApp`-local AI files, not root-level copies.
+
+The mock path is ready for frontend use today. Real blur is optional, region-based, and handled by the separate helper in `ai_redaction/` on `localhost:8001`. This is not face recognition.
+
 ## Confidence Model
 
 Each detection should include a confidence value. Low or uncertain confidence should be surfaced clearly and marked for manual review. Start with mocked detection fixtures before adding real AI or computer vision.
 
 ## Python Requirements Notes
 
-`requirements.txt` is for optional Python AI/redaction/helper work only.
+`requirements.txt` documents Python dependencies for backend/helper work. Flask + SQLite backend dependencies belong to the canonical `backend/` service. Optional real region blur dependencies belong to the `ai_redaction/` helper. Clerk is handled in the Next.js app, not Python.
 
-Clerk is expected to be handled in the Next.js app, not Python. Avoid adding heavy face-recognition packages until the mocked AI/redaction pipeline proves the demo needs them.
+Keep heavy AI/computer-vision dependencies limited to the helper unless the backend or frontend has a direct, documented need. Avoid adding heavy face-recognition packages until the mocked AI/redaction pipeline proves the demo needs them.
 
 ## Worktree Workflow
 
@@ -87,57 +119,17 @@ The create scripts check for a git repository, detect the repository name automa
 
 If setup files are uncommitted, commit setup first so worktrees are not created from a stale HEAD.
 
-## Four-Person Split
+## Team Split
 
-Frontend owns:
+Frontend owns `clerkApp/`: UI pages, components, organizer dashboard, attendee form, event dashboard tabs, event photos UI, photo review UI, confidence display UI, and mock AI/redaction frontend integration.
 
-- UI pages.
-- Components.
-- Organizer dashboard.
-- Attendee form.
-- Event dashboard tabs.
-- Event photos UI.
-- Photo review UI.
-- Confidence display UI.
+Backend owns `backend/`: Flask APIs, SQLite persistence, event/attendee/photo/detection/result models, event key generation and validation, event-scoped data rules, and mock storage.
 
-Backend owns:
+Integrations owns Clerk setup, protected organizer route boundaries, public attendee route boundaries, Google Drive adapter/mock, Backboard.io adapter/mock, environment variable docs, and safe missing-key behavior.
 
-- Internal APIs.
-- Event model.
-- Attendee model.
-- Photo model.
-- Detection/result model.
-- Event key generation and validation.
-- Event-scoped data rules.
-- Mock storage.
+AI / Redaction owns `ai_redaction/` and shared mock fixtures: mock AI/photo-processing pipeline, detection fixtures, confidence scoring, manual review thresholds, original/redacted placeholder outputs, and optional real region blur helper.
 
-Integrations owns:
-
-- Clerk setup.
-- Protected organizer route boundaries.
-- Public attendee route boundaries.
-- Google Drive adapter/mock.
-- Backboard.io adapter/mock.
-- Environment variable docs.
-- Safe missing-key behavior.
-
-AI / Redaction owns:
-
-- Mock AI/photo-processing pipeline.
-- Detection fixtures.
-- Confidence scoring.
-- Manual review thresholds.
-- Original/redacted placeholder outputs.
-- Optional Python helper.
-
-Shared final work:
-
-- QA.
-- Demo script.
-- Screenshots.
-- Devpost.
-- Deployment check.
-- Final bug fixes.
+Shared final work includes QA, demo script, screenshots, Devpost, deployment checks, and final bug fixes.
 
 ## Implementation Sequence
 
