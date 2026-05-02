@@ -38,3 +38,12 @@
 - Product implementation, app scaffolding, dependencies, UI, API routes, models, adapters, and backend logic are allowed.
 - The first implementation target is the mocked organizer event-key demo flow with dashboard tabs and mocked photo-review confidence data.
 - Real Clerk, Google Drive, Backboard.io, and AI/redaction integrations remain mock-first until the end-to-end demo works.
+
+## 2026-05-02 Auth + API Integration Decisions
+
+- Clerk remains organizer-auth only; attendee routes stay public and event-key scoped.
+- Organizer routes are protected by default through `clerkApp/middleware.ts`.
+- Google Drive integration is mock-first and returns photo metadata without requiring OAuth.
+- Backboard.io is an optional privacy review assistant, not a face recognition, image storage, biometric matching, or redaction service.
+- Backboard receives metadata only and must not receive raw photos, reference selfies, face embeddings, biometric data, secrets, or private `.env` values.
+- Missing Google Drive or Backboard configuration must return mock data instead of crashing the app.
