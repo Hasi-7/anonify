@@ -1,0 +1,21 @@
+# Do not install before hacking starts.
+# This file is for optional Python AI/redaction/helper work only.
+# Clerk is expected to be handled in Next.js.
+# Avoid adding heavy face-recognition packages until needed.
+# Start with mocked AI/redaction first.
+
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+python-multipart>=0.0.9
+pydantic>=2.8.0
+python-dotenv>=1.0.1
+pillow>=10.4.0
+opencv-python-headless>=4.10.0.84
+numpy>=1.26.0
+requests>=2.32.0
+httpx>=0.27.0
+google-api-python-client>=2.140.0
+google-auth>=2.33.0
+google-auth-oauthlib>=1.2.1
+google-auth-httplib2>=0.2.0
+pytest>=8.3.0
