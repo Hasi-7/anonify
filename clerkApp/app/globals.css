@@ -793,7 +793,6 @@ code {
 }
 
 .photo-preview {
-  aspect-ratio: 4 / 3;
   background: #e7f7ec;
   overflow: hidden;
   position: relative;
@@ -807,8 +806,8 @@ code {
 
 .photo-preview img,
 .photo-preview svg {
-  height: 100%;
-  object-fit: cover;
+  display: block;
+  height: auto;
   width: 100%;
 }
 

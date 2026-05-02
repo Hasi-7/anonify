@@ -25,7 +25,14 @@ function processPhotoMock(
   eventId: string,
   optedOutAttendees: OptedOutAttendee[]
 ): PhotoProcessingResult {
-  const confidenceMap = MOCK_CONFIDENCE_MAP[photo.photoId] ?? {}
+  let confidenceMap = MOCK_CONFIDENCE_MAP[photo.photoId]
+  if (!confidenceMap) {
+    confidenceMap = {}
+    if (optedOutAttendees.length > 0) {
+      // Provide a default high-confidence match for newly uploaded photos
+      confidenceMap[optedOutAttendees[0].attendeeId] = 0.91
+    }
+  }
   const detections: Detection[] = []
 
   for (const attendee of optedOutAttendees) {
