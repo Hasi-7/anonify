@@ -15,18 +15,61 @@ The first priority is a mocked end-to-end flow before real integrations or produ
 
 ## Local Development
 
-Frontend commands run from `clerkApp/`:
+You need to run three separate servers for the full Anonify experience. It is recommended to run them in three separate terminal tabs.
+
+### 1. Frontend (Next.js)
+
+The frontend app runs from the `clerkApp/` directory on `localhost:3000`.
 
 ```sh
+cd clerkApp
+npm install
 npm run dev
-npm run build
-npm run start
+```
+
+To build and validate the application:
+```sh
+cd clerkApp
+npm run build:safe
+npm run validate:api
 npm run lint
 ```
 
-Backend commands run from `backend/`. Follow `backend/README.md` for the Flask + SQLite setup, database initialization, and local server command.
+### 2. Backend (Flask)
 
-The real Python redaction helper runs separately from `ai_redaction/` on `localhost:8001` when needed. The frontend mock redaction flow does not require API keys or a Python server.
+The canonical backend runs from the `backend/` directory on `localhost:5000`. This handles events, attendees, and SQLite persistence.
+
+```sh
+# Setup virtual environment and dependencies (from the root folder)
+python -m venv .venv
+# On Windows:
+.venv\Scripts\activate
+# On Mac/Linux:
+source .venv/bin/activate
+
+pip install -r requirements.txt
+
+# Run backend
+cd backend
+flask --app app run --debug --port 5000
+```
+
+*Note: Before first use, you may seed the database with demo event `HUSKY-42F7` by running:*
+```sh
+curl -X POST http://127.0.0.1:5000/seed
+# Or via powershell: Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:5000/seed"
+```
+
+### 3. AI / Redaction Helper (FastAPI)
+
+The optional real Python redaction and recognition helper runs from the `ai_redaction/` directory on `localhost:8001`. 
+
+```sh
+# Ensure your virtual environment from step 2 is active
+uvicorn ai_redaction.server:app --reload --port 8001
+```
+
+Once running, ensure your `.env.local` in `clerkApp/` contains `REDACTION_API_URL=http://127.0.0.1:8001` to communicate with the helper.
 
 ## MVP Flow
 
