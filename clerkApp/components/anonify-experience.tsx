@@ -513,6 +513,8 @@ export function AnonifyExperience() {
               photoId: backendPhotoId,
               fileName: registered.data.filename,
               originalImageUrl: dataUrl,
+              width: imageSize?.width,
+              height: imageSize?.height,
             }],
             optedOutAttendees: optOutAttendees.map((a) => ({
               attendeeId: a.id,
