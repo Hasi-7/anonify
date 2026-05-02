@@ -1,28 +1,31 @@
 # Current Task
 
-Pre-hackathon repo setup for anonify.
+Documentation alignment for the current anonify repo structure.
 
 ## Status
 
-Hacking has not started.
+The project now has canonical app/service boundaries:
 
-Do not implement features. Do not scaffold the app. Do not install dependencies.
+- `clerkApp/` for the Next.js frontend.
+- `backend/` for the Flask + SQLite backend.
+- `ai_redaction/` for the optional Python region blur helper.
+- Root docs and scripts for coordination.
 
 ## Goal
 
-Prepare docs, worktrees, requirements, and task boundaries so the team can start building immediately when hacking starts.
+Keep root docs, backend docs, AI/redaction import notes, and Python dependency notes aligned with the current structure.
 
-## Future First Implementation Task After Hacking Starts
+## Constraints
 
-- Mocked Clerk-authenticated organizer event-key demo flow.
-- Admin UI tabs.
-- Mocked photo-review confidence data.
+- Documentation alignment only.
+- Do not implement product features.
+- Do not move app code as part of this task.
+- Do not replace mock redaction with real blur unless a separate implementation task asks for it.
 
 ## Acceptance Criteria
 
-- Setup files exist.
-- Worktree scripts exist.
-- `requirements.txt` exists.
-- No features implemented.
-- No dependencies installed.
-- No app scaffolding created.
+- `AGENTS.md` lists available frontend commands and points backend work to `backend/README.md`.
+- `README.md` no longer implies that no app exists.
+- Backend docs refer to Flask + SQLite, not FastAPI.
+- AI/redaction frontend import docs use `clerkApp`-local `@/` paths.
+- `requirements.txt` is described as backend/helper Python dependencies, not Clerk or frontend dependencies.

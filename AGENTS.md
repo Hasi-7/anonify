@@ -2,43 +2,35 @@
 
 ## Project Goal
 
-anonify is a privacy-first event photo redaction tool. Organizers will sign in, create events, share event-specific attendee links or QR codes, collect opt-out submissions, and later review event photos where opted-out attendees are blurred or flagged for manual review.
+anonify is a privacy-first event photo redaction tool. Organizers sign in, create events, share event-specific attendee links or QR codes, collect opt-out submissions, and review event photos where opted-out attendees can be blurred or flagged for manual review.
 
-## Current Status
+## Current Structure
 
-This repository is in pre-hackathon setup only.
+- `clerkApp/` is the canonical Next.js frontend app.
+- `backend/` is the canonical Flask + SQLite backend.
+- `ai_redaction/` is the optional Python redaction helper. It runs separately on `localhost:8001` when real region blur is needed.
+- Root docs and scripts coordinate the project.
 
-Hacking has not started. Do not build product features yet.
-
-## Pre-Hackathon Rules
-
-- Do not scaffold the app before hacking starts.
-- Do not install dependencies before hacking starts.
-- Do not configure Clerk, Google Drive, Backboard.io, AI, or backend logic before hacking starts.
-- Do not create API routes, UI components, models, adapters, or feature code before hacking starts.
-- Only setup docs, guardrails, dependency manifests, and worktree scripts are allowed right now.
-
-## Future Stack
-
-- Next.js + TypeScript for the main app.
-- Clerk for organizer authentication only.
-- Optional Python helper for AI/redaction work.
-- Google Drive mock adapter first.
-- Backboard.io mock adapter first.
-- Real integrations only after the core demo works with mocks.
+Do not use root-level frontend AI/redaction copies for new integration work. Frontend imports should use the `clerkApp`-local files and `@/` aliases.
 
 ## Commands
 
-- App dev command: not available yet.
-- App build command: not available yet.
-- App test command: not available yet.
-- Python helper command: not available yet.
+Run frontend commands from `clerkApp/`:
 
-No app exists yet by design. Add real commands after hacking starts and after the app is scaffolded.
+- `npm run dev` starts the Next.js local dev server.
+- `npm run build` builds the Next.js app.
+- `npm run start` starts the production Next.js server after a build.
+- `npm run lint` runs the configured Next.js lint command.
+
+Backend commands from `backend/README.md`:
+
+- `cd backend` enters the canonical backend service directory.
+- `python -m pip install -r ../requirements.txt` installs shared Python dependencies for backend/helper work.
+- `flask --app app run --debug` starts the Flask development server once the backend app module exists.
+
+Run the real redaction helper from `ai_redaction/` only when needed. The frontend mock path does not require the helper, API keys, or Python server.
 
 ## Architecture Notes
-
-Plan future implementation around these concepts:
 
 - Clerk organizer user: authenticated event organizer.
 - Event: organizer-owned event workspace.
@@ -47,13 +39,29 @@ Plan future implementation around these concepts:
 - Consent record: attendee consent or opt-out preference scoped to an event.
 - Reference image: optional attendee-provided image for opt-out matching.
 - Event photo: uploaded or imported photo associated with an event.
-- Detection: possible match between an event photo and an opted-out attendee.
+- Detection: region-based possible match/redaction target for an event photo.
 - Processing result: original/redacted output state and detection results for a photo.
 - Status/audit log: event-scoped record of processing and review activity.
 
+## AI / Redaction Frontend Imports
+
+Inside `clerkApp`, use these imports:
+
+```ts
+import { processEventPhotos } from "@/lib/processing/mock-processor"
+import { createRedactionPlan } from "@/lib/processing/redaction-plan"
+import { applyRedactionPlanMock } from "@/lib/processing/apply-redaction"
+import type { RedactionPlan, Detection } from "@/types/ai-redaction"
+import { MOCK_REDACTION_PLANS, getMockRedactionPlan } from "@/mocks/redaction-plan-fixtures"
+```
+
+The `@/*` alias resolves inside `clerkApp`. The mock path is ready for frontend integration today and does not require API keys or the Python helper.
+
+Real blur is optional and separate: run the helper in `ai_redaction/` on `localhost:8001` when the app needs region-based blur output. This is region-based redaction, not face recognition.
+
 ## Demo-First Rule
 
-Build the shortest path to the core demo first after hacking starts:
+Keep the shortest path to the core demo working:
 
 - Organizer auth boundary.
 - Event creation.
@@ -61,7 +69,7 @@ Build the shortest path to the core demo first after hacking starts:
 - Public attendee opt-out form.
 - Organizer dashboard tabs.
 - Mocked photo review with confidence values.
-- Original/redacted toggle using placeholder data.
+- Original/redacted toggle using placeholder or mock data.
 
 Do not chase real integrations or advanced AI before the demo flow works end to end.
 

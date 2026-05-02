@@ -1,9 +1,10 @@
-# Do not install before hacking starts.
-# This file is for optional Python AI/redaction/helper work only.
-# Clerk is expected to be handled in Next.js.
-# Avoid adding heavy face-recognition packages until needed.
-# Start with mocked AI/redaction first.
+# Python dependencies for the Flask + SQLite backend and optional redaction helper.
+# SQLite is provided by the Python standard library.
+# Clerk is handled in the Next.js frontend, not Python.
+# Keep real AI/computer-vision dependencies scoped to ai_redaction/ unless another service needs them.
+# The frontend mock redaction path does not require this file, API keys, or a Python server.
 
+flask>=3.0.0
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.0
 python-multipart>=0.0.9
