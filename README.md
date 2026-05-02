@@ -9,6 +9,10 @@ anonify is a privacy-first event photo redaction tool for event organizers.
 - `ai_redaction/` is the optional Python redaction helper for real region blur.
 - Root docs and scripts coordinate the project.
 
+Hacking has started. The project is moving from setup into demo-first implementation.
+
+The first priority is a mocked end-to-end flow before real integrations or production-grade AI/redaction work.
+
 ## Local Development
 
 Frontend commands run from `clerkApp/`:
@@ -25,6 +29,8 @@ Backend commands run from `backend/`. Follow `backend/README.md` for the Flask +
 The real Python redaction helper runs separately from `ai_redaction/` on `localhost:8001` when needed. The frontend mock redaction flow does not require API keys or a Python server.
 
 ## MVP Flow
+
+The target demo flow is:
 
 1. Organizer signs in with Clerk.
 2. Organizer creates an event.
@@ -84,7 +90,7 @@ Each detection should include a confidence value. Low or uncertain confidence sh
 
 `requirements.txt` documents Python dependencies for backend/helper work. Flask + SQLite backend dependencies belong to the canonical `backend/` service. Optional real region blur dependencies belong to the `ai_redaction/` helper. Clerk is handled in the Next.js app, not Python.
 
-Keep heavy AI/computer-vision dependencies limited to the helper unless the backend or frontend has a direct, documented need.
+Keep heavy AI/computer-vision dependencies limited to the helper unless the backend or frontend has a direct, documented need. Avoid adding heavy face-recognition packages until the mocked AI/redaction pipeline proves the demo needs them.
 
 ## Worktree Workflow
 
@@ -124,6 +130,18 @@ Integrations owns Clerk setup, protected organizer route boundaries, public atte
 AI / Redaction owns `ai_redaction/` and shared mock fixtures: mock AI/photo-processing pipeline, detection fixtures, confidence scoring, manual review thresholds, original/redacted placeholder outputs, and optional real region blur helper.
 
 Shared final work includes QA, demo script, screenshots, Devpost, deployment checks, and final bug fixes.
+
+## Implementation Sequence
+
+1. Scaffold or adopt the Next.js + TypeScript app.
+2. Add a mocked Clerk-authenticated organizer event-key demo flow.
+3. Add admin UI tabs with mocked data.
+4. Add public attendee form with event-key routing.
+5. Add mock storage and event-scoped data rules.
+6. Add mocked photo-review confidence data and manual review states.
+7. Add mock Google Drive and Backboard.io adapters.
+8. Add optional Python helper only if it helps the demo.
+9. Replace mocks with real integrations only after the core demo works.
 
 ## Safety And Privacy Notes
 

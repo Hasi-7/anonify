@@ -13,6 +13,27 @@ anonify is a privacy-first event photo redaction tool. Organizers sign in, creat
 
 Do not use root-level frontend AI/redaction copies for new integration work. Frontend imports should use the `clerkApp`-local files and `@/` aliases.
 
+Hacking has started. Product implementation is allowed.
+
+Build the shortest path to a working demo first. Keep changes small, use mocks before real integrations, and avoid chasing production-grade AI or storage until the core flow works end to end.
+
+## Build Rules
+
+- Product features, app scaffolding, API routes, UI components, models, adapters, and backend logic are now allowed.
+- Prefer mocked data, mock adapters, and simple in-repo state until the demo flow is clear.
+- Configure real Clerk, Google Drive, Backboard.io, and AI integrations only after the mocked demo path works.
+- Do not commit secrets, `.env` files, attendee images, or private consent data.
+- Keep implementation focused on the current demo task in `context/current-task.md`.
+
+## Future Stack
+
+- Next.js + TypeScript for the main app.
+- Clerk for organizer authentication only.
+- Optional Python helper for AI/redaction work.
+- Google Drive mock adapter first.
+- Backboard.io mock adapter first.
+- Real integrations only after the core demo works with mocks.
+
 ## Commands
 
 Run frontend commands from `clerkApp/`:
