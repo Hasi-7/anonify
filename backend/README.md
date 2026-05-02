@@ -11,74 +11,152 @@
 - Event-scoped access rules.
 - Mock storage while the demo flow is still evolving.
 
-## Goal
+## API Contract for Frontend
 
-Build a reliable event-scoped backend that supports:
+**Base URL:** `http://localhost:5000`
+**Demo Event Key:** `HUSKY-42F7` (Available after running seed script)
 
-- event creation and event key generation
-- event lookup by public event key
-- attendee opt-out submissions scoped to an event
-- event photo registration and listing
-- mock detection/results for photo review
-- event-scoped access and data isolation
+### Field Naming Conventions
+- All fields use `snake_case`.
+- **Confidence Format:** `confidence` is represented as an **integer percentage** (e.g., `91`, `78`, `63`). You can display this directly as `91%`.
+- **Bounding Box Format:** `bounding_box` is represented as an array of four integers `[x, y, width, height]`.
 
-## Completed Backend Work
+### Endpoints
 
-- Flask app with CORS.
-- Event, Attendee, Photo, and Detection dataclasses.
-- Full CRUD functions with event-scoped isolation.
-- API routes per contract.
-- Mock seed data with demo event, attendees, photos, and detections.
-- Pytest coverage for API and model behavior.
+#### 1. Events
 
-## Shared Import Note
+**`GET /events`**
+List all events for an organizer. Requires `?organizer_id=...` parameter.
 
-Frontend and backend agents should use:
-
-```ts
-import { processEventPhotos } from "@/lib/processing/mock-processor"
+**`GET /events/key/<event_key>`**
+Lookup an event by its public key (used by attendees).
+*Response Example:*
+```json
+{
+  "id": 1,
+  "name": "HuskyHack Demo",
+  "event_key": "HUSKY-42F7",
+  "organizer_id": "demo_organizer_001",
+  "created_at": "2026-05-02T12:00:00Z"
+}
 ```
 
-## Data Models
+**`GET /events/<event_id>/overview`**
+Get dashboard statistics for a specific event.
+*Response Example:*
+```json
+{
+  "event_name": "HuskyHack Demo",
+  "event_key": "HUSKY-42F7",
+  "attendee_link": "/attend?eventKey=HUSKY-42F7",
+  "total_attendees": 6,
+  "opted_out_count": 4,
+  "photo_count": 4,
+  "processed_count": 2,
+  "needs_review_count": 1
+}
+```
 
-- Event: id, name, event_key, organizer_id, created_at.
-- Attendee: id, event_id, name, consent_status, opted_out, reference_photo_url, submitted_at.
-- EventPhoto: id, event_id, filename, source, status, uploaded_at, processed_at.
-- Detection: id, photo_id, attendee_id, attendee_name, confidence, redaction_status, manual_review_required, reference_photo_url.
+#### 2. Attendees
 
-## API Contract
+**`GET /events/<event_id>/attendees`**
+List all attendees for an event.
+*Filter:* Add `?opted_out=true` to only return attendees who have opted out.
+*Response Example:*
+```json
+[
+  {
+    "id": 1,
+    "event_id": 1,
+    "name": "Maya Chen",
+    "consent_status": "opted_out",
+    "opted_out": true,
+    "reference_photo_url": "data:image/png;base64,MOCK_MAYA",
+    "submitted_at": "2026-05-02T12:05:00Z"
+  }
+]
+```
 
-- `POST /events` - create an event
-- `GET /events/{event_id}` - get event details
-- `GET /events/key/{event_key}` - lookup event by public event key
-- `POST /events/{event_id}/attendees` - add attendee opt-out submission
-- `GET /events/{event_id}/attendees` - list event attendees
-- `POST /events/{event_id}/photos` - register an event photo
-- `GET /events/{event_id}/photos` - list event photos
-- `GET /events/{event_id}/photos/{photo_id}` - photo review details
+#### 3. Photos
+
+**`GET /events/<event_id>/photos`**
+List all registered photos for an event, including detection summaries.
+*Response Example:*
+```json
+[
+  {
+    "id": 1,
+    "event_id": 1,
+    "filename": "group_photo_1.jpg",
+    "source": "upload",
+    "status": "processed",
+    "uploaded_at": "2026-05-02T12:10:00Z",
+    "processed_at": "2026-05-02T12:15:00Z",
+    "detection_count": 3,
+    "max_confidence": 91
+  }
+]
+```
+
+**`GET /events/<event_id>/photos/<photo_id>`**
+Detailed photo view for the Review UI, including full detection and bounding box data.
+*Response Example:*
+```json
+{
+  "id": 1,
+  "event_id": 1,
+  "filename": "group_photo_1.jpg",
+  "source": "upload",
+  "status": "processed",
+  "uploaded_at": "2026-05-02T12:10:00Z",
+  "processed_at": "2026-05-02T12:15:00Z",
+  "original_image_url": "/mock-photos/group_photo_1.jpg",
+  "redacted_image_url": "/mock-photos/redacted_group_photo_1.jpg",
+  "detections": [
+    {
+      "id": 1,
+      "photo_id": 1,
+      "attendee_id": 1,
+      "attendee_name": "Maya Chen",
+      "confidence": 91,
+      "redaction_status": "auto_blurred",
+      "manual_review_required": false,
+      "reference_photo_url": "data:image/png;base64,MOCK_MAYA",
+      "bounding_box": [100, 100, 250, 250]
+    }
+  ]
+}
+```
 
 ## Local Development
 
 Use this directory for backend work:
-
 ```sh
 cd backend
 ```
 
-Install Python dependencies from the project manifest when working on the backend or helper:
-
+**1. Install Dependencies**
 ```sh
 python -m pip install -r ../requirements.txt
 ```
 
-Run the Flask app:
-
+**2. Run the Server**
+The backend is powered by **Flask**. Start the dev server on port 5000:
 ```sh
 flask --app app run --debug
 ```
 
-SQLite uses Python's standard library. Keep database files and generated local state out of git.
+**3. Seed Demo Data**
+With the server running, populate the database with the `HUSKY-42F7` demo event:
+```sh
+curl -X POST http://localhost:5000/seed
+```
+
+**4. Run Tests**
+We use `pytest` for unit and API tests. They run against an isolated, in-memory SQLite database.
+```sh
+pytest tests/ -v
+```
 
 ## Framework Note
-
-The backend is Flask, not FastAPI. FastAPI or Uvicorn dependencies, if present in the shared Python manifest, are for the separate redaction helper/server and should not be treated as the canonical backend framework.
+The backend is **Flask**, not FastAPI. FastAPI or Uvicorn dependencies, if present in the shared Python manifest, are for the separate AI redaction helper/server and should not be treated as the canonical backend framework.

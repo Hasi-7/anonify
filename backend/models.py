@@ -52,6 +52,7 @@ class Detection:
     redaction_status: str           # "auto_blurred" | "pending_review" | "approved" | "rejected"
     manual_review_required: bool
     reference_photo_url: str | None
+    bounding_box: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -98,6 +99,7 @@ CREATE TABLE IF NOT EXISTS detections (
     redaction_status TEXT NOT NULL,
     manual_review_required INTEGER NOT NULL,
     reference_photo_url TEXT,
+    bounding_box TEXT,
     FOREIGN KEY(photo_id) REFERENCES photos(id),
     FOREIGN KEY(attendee_id) REFERENCES attendees(id)
 );
@@ -304,20 +306,21 @@ def insert_detection(
     redaction_status: str,
     manual_review_required: bool,
     reference_photo_url: str | None = None,
+    bounding_box: str | None = None,
 ) -> Detection:
     cursor = db.execute(
         "INSERT INTO detections "
-        "(photo_id, attendee_id, attendee_name, confidence, redaction_status, manual_review_required, reference_photo_url) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "(photo_id, attendee_id, attendee_name, confidence, redaction_status, manual_review_required, reference_photo_url, bounding_box) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         (photo_id, attendee_id, attendee_name, confidence, redaction_status,
-         int(manual_review_required), reference_photo_url),
+         int(manual_review_required), reference_photo_url, bounding_box),
     )
     db.commit()
     return Detection(
         id=cursor.lastrowid, photo_id=photo_id, attendee_id=attendee_id,
         attendee_name=attendee_name, confidence=confidence,
         redaction_status=redaction_status, manual_review_required=manual_review_required,
-        reference_photo_url=reference_photo_url,
+        reference_photo_url=reference_photo_url, bounding_box=bounding_box,
     )
 
 
@@ -333,6 +336,7 @@ def get_detections_by_photo(db: Connection, photo_id: int) -> list[Detection]:
             redaction_status=r["redaction_status"],
             manual_review_required=bool(r["manual_review_required"]),
             reference_photo_url=r["reference_photo_url"],
+            bounding_box=r["bounding_box"],
         )
         for r in rows
     ]

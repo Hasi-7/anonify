@@ -208,16 +208,25 @@ def _photo_dict(p) -> dict:
         "id": p.id, "event_id": p.event_id, "filename": p.filename,
         "source": p.source, "status": p.status,
         "uploaded_at": p.uploaded_at, "processed_at": p.processed_at,
+        "original_image_url": f"/mock-photos/{p.filename}",
+        "redacted_image_url": f"/mock-photos/redacted_{p.filename}" if p.status == "processed" else None,
     }
 
 
 def _detection_dict(d) -> dict:
+    import json
+    try:
+        box = json.loads(d.bounding_box) if getattr(d, "bounding_box", None) else [150, 100, 200, 200]
+    except Exception:
+        box = [150, 100, 200, 200]
+
     return {
         "id": d.id, "photo_id": d.photo_id, "attendee_id": d.attendee_id,
         "attendee_name": d.attendee_name, "confidence": d.confidence,
         "redaction_status": d.redaction_status,
         "manual_review_required": d.manual_review_required,
         "reference_photo_url": d.reference_photo_url,
+        "bounding_box": box,
     }
 
 
