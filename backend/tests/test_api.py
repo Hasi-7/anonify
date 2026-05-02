@@ -143,7 +143,7 @@ class TestPhotoAPI:
         assert resp.status_code == 200
         assert len(resp.get_json()) == 2
 
-    def test_photo_review_detail(self, client):
+    def test_photo_review_detail(self, app, client):
         eid = self._create_event(client)
         # Create attendee + photo
         att = client.post(f"/events/{eid}/attendees", json={
@@ -153,13 +153,27 @@ class TestPhotoAPI:
             "filename": "group.jpg",
         }).get_json()
 
-        # The photo review detail should return (empty detections for now since
-        # detections are created by AI/seed, not via API yet)
+        from backend.models import insert_detection
+        from backend.db import get_db
+        with app.app_context():
+            db = get_db()
+            insert_detection(
+                db, photo["id"], att["id"], "Maya", 91, "auto_blurred", False,
+                bounding_box="[10, 20, 30, 40]"
+            )
+
         resp = client.get(f"/events/{eid}/photos/{photo['id']}")
         assert resp.status_code == 200
         data = resp.get_json()
         assert "detections" in data
         assert data["filename"] == "group.jpg"
+        assert data["original_image_url"] == "/mock-photos/group.jpg"
+        assert data["redacted_image_url"] is None
+        
+        assert len(data["detections"]) == 1
+        det = data["detections"][0]
+        assert det["confidence"] == 91
+        assert det["bounding_box"] == [10, 20, 30, 40]
 
     def test_photo_not_in_event(self, client):
         eid1 = self._create_event(client)

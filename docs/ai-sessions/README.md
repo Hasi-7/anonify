@@ -13,7 +13,7 @@ Use this directory to keep concise summaries of significant AI-assisted work.
 - Next actions:
 - What should be saved to the second brain:
 
-## Previous Session
+## Previous Sessions
 
 - Goal: Pre-hackathon repo setup for anonify.
 - Files changed: Setup docs, dependency manifest, gitignore, and worktree scripts.
@@ -22,9 +22,9 @@ Use this directory to keep concise summaries of significant AI-assisted work.
 - Tests run: Not available yet because no app exists.
 - Open issues: Worktrees require a git repository and committed setup files before creation.
 - Next actions: Commit setup, then run the worktree creation script when the team is ready to open parallel work areas.
-- What should be saved to the second brain: anonify is pre-hackathon setup only; future implementation starts with mocked organizer event-key demo flow and mock photo review confidence data.
+- What should be saved to the second brain: anonify started as pre-hackathon setup; implementation starts with mocked organizer event-key demo flow and mock photo review confidence data.
 
-## Current Session
+## Implementation Mode Session
 
 - Goal: Switch project guidance from setup-only to demo implementation.
 - Files changed: `AGENTS.md`, `README.md`, `context/current-task.md`, `requirements.txt`, `docs/decisions/decisions.md`, and this session log.
@@ -45,3 +45,14 @@ Use this directory to keep concise summaries of significant AI-assisted work.
 - Open issues: The app still shows the Next 16 middleware-to-proxy deprecation warning. No app test command exists yet.
 - Next actions: Continue the mocked demo flow: organizer dashboard tabs, photo review UI, confidence display, and AI pipeline connection to the Next/API layer.
 - What should be saved to the second brain: anonify’s current API security model is dual-lock: wrapper for runtime auth, `apiAccess` for contract declaration, validator for consistency, supported by workflow gates rather than extra middleware logic.
+
+## Documentation Alignment Session
+
+- Goal: Align documentation with the current repo structure.
+- Files changed: Root docs, task context, backend docs, and Python dependency notes.
+- Commands run: Repository/file inspection only; no install commands.
+- Decisions made: `clerkApp/` is the canonical Next.js frontend, `backend/` is the canonical Flask + SQLite backend, and `ai_redaction/` is the optional Python region blur helper.
+- Tests run: Not applicable for documentation-only changes.
+- Open issues: None for documentation alignment.
+- Next actions: Keep future feature work inside the canonical app/service directories.
+- What should be saved to the second brain: AI/redaction frontend imports resolve inside `clerkApp` through `@/` aliases; real region blur remains separate in `ai_redaction/` on `localhost:8001`.

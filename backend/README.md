@@ -1,82 +1,162 @@
 # anonify Backend
 
-This backend workspace is for the `person 2` role: internal data models, storage, and app APIs for anonify.
+`backend/` is the canonical Flask + SQLite backend for anonify.
 
-## Goal
+## Responsibilities
 
-Build a reliable event-scoped backend that supports:
+- Flask HTTP API routes.
+- SQLite persistence.
+- Event, attendee, consent, photo, detection, and processing-result data.
+- Event key generation and validation.
+- Event-scoped access rules.
+- Mock storage while the demo flow is still evolving.
 
-- event creation and event key generation
-- event lookup by public event key
-- attendee opt-out submissions scoped to an event
-- event photo registration and listing
-- mock detection/results for photo review
-- event-scoped access and data isolation
+## API Contract for Frontend
 
-## Phase 1: Backend plan
+**Base URL:** `http://localhost:5000`
+**Demo Event Key:** `HUSKY-42F7` (Available after running seed script)
 
-1. Define backend API contract and data model design.
-2. Scaffold a Flask app and core health check route.
-3. Implement `Event` creation and event key management.
-4. Implement attendee submission and event-scoped attendee listing.
-5. Implement event photo registration and listing.
-6. Add photo review/detail endpoint with mocked detections.
-7. Implement a mock storage layer with event-scoped isolation.
-8. Add unit tests for event-scoped rules and API contract.
+### Field Naming Conventions
+- All fields use `snake_case`.
+- **Confidence Format:** `confidence` is represented as an **integer percentage** (e.g., `91`, `78`, `63`). You can display this directly as `91%`.
+- **Bounding Box Format:** `bounding_box` is represented as an array of four integers `[x, y, width, height]`.
 
-## Shared import note
+### Endpoints
 
-- Frontend and backend agents should use:
-  `import { processEventPhotos } from "@/lib/processing/mock-processor"`
+#### 1. Events
 
-## Data models (high-level)
+**`GET /events`**
+List all events for an organizer. Requires `?organizer_id=...` parameter.
 
-- Event
-  - id
-  - name
-  - event_key
-  - organizer_id
-  - created_at
+**`GET /events/key/<event_key>`**
+Lookup an event by its public key (used by attendees).
+*Response Example:*
+```json
+{
+  "id": 1,
+  "name": "HuskyHack Demo",
+  "event_key": "HUSKY-42F7",
+  "organizer_id": "demo_organizer_001",
+  "created_at": "2026-05-02T12:00:00Z"
+}
+```
 
-- Attendee
-  - id
-  - event_id
-  - name
-  - consent_status
-  - opted_out
-  - reference_photo_url
-  - submitted_at
+**`GET /events/<event_id>/overview`**
+Get dashboard statistics for a specific event.
+*Response Example:*
+```json
+{
+  "event_name": "HuskyHack Demo",
+  "event_key": "HUSKY-42F7",
+  "attendee_link": "/attend?eventKey=HUSKY-42F7",
+  "total_attendees": 6,
+  "opted_out_count": 4,
+  "photo_count": 4,
+  "processed_count": 2,
+  "needs_review_count": 1
+}
+```
 
-- EventPhoto
-  - id
-  - event_id
-  - filename
-  - source
-  - status
-  - uploaded_at
-  - processed_at
+#### 2. Attendees
 
-- Detection
-  - id
-  - photo_id
-  - attendee_id
-  - attendee_name
-  - confidence
-  - redaction_status
-  - manual_review_required
-  - reference_photo_url
+**`GET /events/<event_id>/attendees`**
+List all attendees for an event.
+*Filter:* Add `?opted_out=true` to only return attendees who have opted out.
+*Response Example:*
+```json
+[
+  {
+    "id": 1,
+    "event_id": 1,
+    "name": "Maya Chen",
+    "consent_status": "opted_out",
+    "opted_out": true,
+    "reference_photo_url": "data:image/png;base64,MOCK_MAYA",
+    "submitted_at": "2026-05-02T12:05:00Z"
+  }
+]
+```
 
-## API contract (initial)
+#### 3. Photos
 
-- `POST /events` — create an event
-- `GET /events/{event_id}` — get event details
-- `GET /events/key/{event_key}` — lookup event by public key
-- `POST /events/{event_id}/attendees` — add attendee opt-out submission
-- `GET /events/{event_id}/attendees` — list event attendees
-- `POST /events/{event_id}/photos` — register an event photo
-- `GET /events/{event_id}/photos` — list event photos
-- `GET /events/{event_id}/photos/{photo_id}` — photo review details
+**`GET /events/<event_id>/photos`**
+List all registered photos for an event, including detection summaries.
+*Response Example:*
+```json
+[
+  {
+    "id": 1,
+    "event_id": 1,
+    "filename": "group_photo_1.jpg",
+    "source": "upload",
+    "status": "processed",
+    "uploaded_at": "2026-05-02T12:10:00Z",
+    "processed_at": "2026-05-02T12:15:00Z",
+    "detection_count": 3,
+    "max_confidence": 91
+  }
+]
+```
 
-## Next action
+**`GET /events/<event_id>/photos/<photo_id>`**
+Detailed photo view for the Review UI, including full detection and bounding box data.
+*Response Example:*
+```json
+{
+  "id": 1,
+  "event_id": 1,
+  "filename": "group_photo_1.jpg",
+  "source": "upload",
+  "status": "processed",
+  "uploaded_at": "2026-05-02T12:10:00Z",
+  "processed_at": "2026-05-02T12:15:00Z",
+  "original_image_url": "/mock-photos/group_photo_1.jpg",
+  "redacted_image_url": "/mock-photos/redacted_group_photo_1.jpg",
+  "detections": [
+    {
+      "id": 1,
+      "photo_id": 1,
+      "attendee_id": 1,
+      "attendee_name": "Maya Chen",
+      "confidence": 91,
+      "redaction_status": "auto_blurred",
+      "manual_review_required": false,
+      "reference_photo_url": "data:image/png;base64,MOCK_MAYA",
+      "bounding_box": [100, 100, 250, 250]
+    }
+  ]
+}
+```
 
-- Create the first backend files and add the FastAPI app scaffold in `backend/`.
+## Local Development
+
+Use this directory for backend work:
+```sh
+cd backend
+```
+
+**1. Install Dependencies**
+```sh
+python -m pip install -r ../requirements.txt
+```
+
+**2. Run the Server**
+The backend is powered by **Flask**. Start the dev server on port 5000:
+```sh
+flask --app app run --debug
+```
+
+**3. Seed Demo Data**
+With the server running, populate the database with the `HUSKY-42F7` demo event:
+```sh
+curl -X POST http://localhost:5000/seed
+```
+
+**4. Run Tests**
+We use `pytest` for unit and API tests. They run against an isolated, in-memory SQLite database.
+```sh
+pytest tests/ -v
+```
+
+## Framework Note
+The backend is **Flask**, not FastAPI. FastAPI or Uvicorn dependencies, if present in the shared Python manifest, are for the separate AI redaction helper/server and should not be treated as the canonical backend framework.
