@@ -1,4 +1,4 @@
-import type { EventPhotoLike } from "../lib/integrations/types"
+import type { EventPhotoLike } from "@/types/integrations"
 
 export const MOCK_GOOGLE_DRIVE_EVENT_ID = "event_demo_001"
 

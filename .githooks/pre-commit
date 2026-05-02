@@ -1,0 +1,6 @@
+#!/bin/sh
+set -e
+
+echo "[pre-commit] Validating anonify API contracts..."
+cd clerkApp
+npm run validate:api

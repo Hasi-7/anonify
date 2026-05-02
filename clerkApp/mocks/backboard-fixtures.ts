@@ -1,4 +1,4 @@
-import type { PrivacyReviewSummaryInput } from "../lib/integrations/types"
+import type { PrivacyReviewSummaryInput } from "@/types/integrations"
 
 export const MOCK_PRIVACY_REVIEW_SUMMARY_INPUT: PrivacyReviewSummaryInput = {
   eventId: "event_demo_001",

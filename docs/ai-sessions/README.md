@@ -34,3 +34,14 @@ Use this directory to keep concise summaries of significant AI-assisted work.
 - Open issues: Main app directory still needs to be adopted or scaffolded.
 - Next actions: Build the mocked organizer event-key flow, dashboard tabs, public attendee form, and mocked photo review.
 - What should be saved to the second brain: anonify has moved into implementation mode, with mock-first demo flow as the current task.
+
+## Current Architecture Snapshot
+
+- Goal: Lock in the auth/API integration architecture and build guardrails for the Next.js app.
+- Files changed: `clerkApp/app/api/**`, `clerkApp/server/**`, `clerkApp/scripts/**`, `clerkApp/package.json`, `clerkApp/next.config.ts`, `.githooks/pre-commit`, `.github/workflows/clerkapp-ci.yml`, `docs/integrations/auth-api-integrations.md`, `docs/decisions/decisions.md`, `context/current-task.md`, and README/agent docs.
+- Commands run: `npm.cmd run validate:api`, `npm.cmd run lint`, `npm.cmd run build:safe`, `npm.cmd run build`, `npx.cmd next build`, `./node_modules/.bin/next.cmd build`, `npm.cmd run prepare`, and `git hook run pre-commit`.
+- Decisions made: Middleware remains UI-only. API auth is enforced by route wrappers. `apiAccess` declares the API contract. `validate-api-contracts.mjs` enforces wrapper/metadata consistency. `build:safe`, CI, and pre-commit hooks are the supported workflow gates. `next.config.ts` is a defensive direct-build backstop, not a security boundary.
+- Tests run: Next app validation, lint, safe build, delegated build, direct Next build backstop checks, and pre-commit hook validation.
+- Open issues: The app still shows the Next 16 middleware-to-proxy deprecation warning. No app test command exists yet.
+- Next actions: Continue the mocked demo flow: organizer dashboard tabs, photo review UI, confidence display, and AI pipeline connection to the Next/API layer.
+- What should be saved to the second brain: anonify’s current API security model is dual-lock: wrapper for runtime auth, `apiAccess` for contract declaration, validator for consistency, supported by workflow gates rather than extra middleware logic.

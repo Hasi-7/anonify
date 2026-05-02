@@ -1,3 +1,4 @@
+import "server-only"
 import { MOCK_GOOGLE_DRIVE_PHOTOS } from "../../mocks/google-drive-fixtures"
 import type { EventPhotoLike } from "./types"
 

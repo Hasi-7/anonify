@@ -29,12 +29,15 @@ Build the shortest path to a working demo first. Keep changes small, use mocks b
 
 ## Commands
 
-- App dev command: not available yet.
-- App build command: not available yet.
+- App directory: `clerkApp`.
+- App dev command: `cd clerkApp && npm run dev`.
+- App build command: `cd clerkApp && npm run build:safe`.
+- App validation command: `cd clerkApp && npm run validate:api`.
+- App lint command: `cd clerkApp && npm run lint`.
 - App test command: not available yet.
-- Python helper command: not available yet.
+- Python helper command: `python ai_redaction/server.py` after `pip install -r requirements.txt` when real blur helper work is needed.
 
-Add real commands here after the app is scaffolded or when an existing app directory is adopted as the main app.
+Do not use raw `next build`, `npx next build`, or `node_modules/.bin/next build` as the normal build command. `build:safe` is the canonical production build path and runs API contract validation. Direct Next build entrypoints have a defensive validation backstop in `next.config.ts`, but that is not the primary workflow gate.
 
 ## Architecture Notes
 
@@ -50,6 +53,16 @@ Plan future implementation around these concepts:
 - Detection: possible match between an event photo and an opted-out attendee.
 - Processing result: original/redacted output state and detection results for a photo.
 - Status/audit log: event-scoped record of processing and review activity.
+
+Current auth/API boundaries:
+
+- Middleware is UI-only and skips `/api`.
+- API runtime auth is enforced by route wrappers: `publicApiRoute(handler)` and `organizerApiRoute(handler)`.
+- API contract declaration is `apiAccess = "public" | "organizer"`.
+- `scripts/validate-api-contracts.mjs` enforces that `apiAccess` and wrapper usage match.
+- `build:safe`, CI, and `.githooks/pre-commit` are mandatory workflow gates for API contract validation.
+- `next.config.ts` is only a defensive backstop for direct Next build commands, not a security boundary.
+- Integration adapters live under `clerkApp/server/integrations/` and must only be imported from API routes or server-only modules.
 
 ## Demo-First Rule
 
