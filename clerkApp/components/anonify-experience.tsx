@@ -1,17 +1,64 @@
 "use client";
 
 import { UserButton } from "@clerk/nextjs";
-import { ChangeEvent, ReactElement, SVGProps, useMemo, useRef, useState } from "react";
+import { ChangeEvent, ReactElement, SVGProps, useEffect, useMemo, useRef, useState } from "react";
+import {
+  adaptEvent,
+  adaptEventOverview,
+  adaptPhotoDetail,
+  getEventByKey,
+  getEventOverview,
+  getEventPhotoDetail,
+  getEventPhotos,
+  getOptOutAttendees
+} from "@/lib/api";
 import {
   attendees,
   auditLog,
   events,
   photos as seedPhotos,
+  type Attendee,
   type EventPhoto,
   type EventSummary,
   type Figure,
   type PhotoStatus
 } from "@/lib/mock-data";
+import { getMockPhotoReviewModel } from "@/lib/processing/photo-review-adapter";
+import type { PhotoReviewModel } from "@/types/photo-review";
+
+const DEMO_EVENT_KEY = "HUSKY-42F7";
+
+const figureColors = ["#2563eb", "#f97316", "#14b8a6", "#7c3aed", "#0ea5e9", "#f43f5e"];
+
+const formatDate = (value?: string | null) => {
+  if (!value) {
+    return "May 2, 2026";
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : new Intl.DateTimeFormat("en", { month: "short", day: "numeric", year: "numeric" }).format(date);
+};
+
+const formatTime = (value?: string | null) => {
+  if (!value) {
+    return "Recently";
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : new Intl.DateTimeFormat("en", { hour: "numeric", minute: "2-digit" }).format(date);
+};
+
+const toMockStatus = (status: string): PhotoStatus => {
+  if (["not_processed", "processing", "match", "no_match", "manual_review", "processed"].includes(status)) {
+    return status as PhotoStatus;
+  }
+
+  return status === "needs_review" ? "manual_review" : "processed";
+};
 
 type OrganizerPhoto = EventPhoto & {
   dataUrl?: string;
@@ -33,6 +80,27 @@ const demoFigures: Figure[] = [
   { id: "upload-3", x: 68, y: 35, w: 13, h: 40, color: "#f97316", match: "a3", confidence: 0.82 }
 ];
 
+const photoReviewFixtureIds: Record<string, string> = {
+  p1: "photo_001",
+  p2: "photo_002",
+  p3: "photo_003",
+  p4: "photo_004"
+};
+
+const toReviewFixtureId = (photoId: string) => photoReviewFixtureIds[photoId] ?? photoId;
+
+const toReviewFigures = (model: PhotoReviewModel): Figure[] =>
+  model.regions.map((region, index) => ({
+    id: `${model.photoId}-region-${index}`,
+    x: (region.x / 400) * 100,
+    y: (region.y / 300) * 100,
+    w: (region.width / 400) * 100,
+    h: (region.height / 300) * 100,
+    color: figureColors[index % figureColors.length],
+    match: region.attendeeId,
+    confidence: region.confidencePercent / 100
+  }));
+
 export function AnonifyExperience() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [eventList, setEventList] = useState(events);
@@ -41,14 +109,125 @@ export function AnonifyExperience() {
     seedPhotos.map((photo) => ({ ...photo, redacted: photo.status === "match" }))
   );
   const [selectedPhotoId, setSelectedPhotoId] = useState(seedPhotos[0]?.id ?? "");
+  const [optOutAttendees, setOptOutAttendees] = useState(attendees);
   const [threshold, setThreshold] = useState(65);
   const [uploadMessage, setUploadMessage] = useState("Upload event photos to add them to this workspace.");
   const [creatingEvent, setCreatingEvent] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadBackendDemoEvent() {
+      const eventResult = await getEventByKey(DEMO_EVENT_KEY);
+      if (!eventResult.ok) {
+        return;
+      }
+
+      const backendEvent = adaptEvent(eventResult.data);
+      const [overviewResult, attendeeResult, photoResult] = await Promise.all([
+        getEventOverview(backendEvent.id),
+        getOptOutAttendees(backendEvent.id),
+        getEventPhotos(backendEvent.id)
+      ]);
+
+      if (cancelled) {
+        return;
+      }
+
+      const overview = overviewResult.ok ? adaptEventOverview(overviewResult.data, backendEvent.id) : null;
+      const hydratedEvent: EventSummary = {
+        id: backendEvent.id,
+        name: overview?.name ?? backendEvent.name,
+        date: formatDate(backendEvent.createdAt),
+        key: overview?.key ?? backendEvent.key,
+        attendees: overview?.attendees ?? events[0]?.attendees ?? 0,
+        optOuts: overview?.optOuts ?? events[0]?.optOuts ?? 0,
+        photos: overview?.photos ?? events[0]?.photos ?? 0,
+        processed: overview?.processed ?? events[0]?.processed ?? 0,
+        needsReview: overview?.needsReview ?? events[0]?.needsReview ?? 0,
+        active: true
+      };
+
+      setEventList((currentEvents) => [
+        hydratedEvent,
+        ...currentEvents.filter((event) => event.key !== hydratedEvent.key)
+      ]);
+      setSelectedEventId(hydratedEvent.id);
+
+      if (attendeeResult.ok) {
+        setOptOutAttendees(
+          attendeeResult.data.map((attendee, index) => ({
+            id: String(attendee.id),
+            name: attendee.name,
+            email: "",
+            submitted: formatTime(attendee.submitted_at),
+            status: attendee.consent_status,
+            referenceHue: (index * 57 + 180) % 360,
+            confidenceNote: attendee.reference_photo_url ? "Reference photo submitted" : "No reference photo"
+          }))
+        );
+      }
+
+      if (photoResult.ok && photoResult.data.length > 0) {
+        const details = await Promise.all(
+          photoResult.data.map(async (photo) => {
+            const detailResult = await getEventPhotoDetail(backendEvent.id, photo.id);
+            return detailResult.ok ? adaptPhotoDetail(detailResult.data) : null;
+          })
+        );
+
+        if (cancelled) {
+          return;
+        }
+
+        const backendPhotos: OrganizerPhoto[] = photoResult.data.map((photo, index) => {
+          const detail = details[index];
+          const detections = detail?.detections ?? [];
+
+          return {
+            id: String(photo.id),
+            name: photo.filename,
+            captured: formatTime(photo.uploaded_at),
+            source: photo.source === "google_drive" ? "Drive import" : "Manual upload",
+            status: detections.some((detection) => detection.manualReviewRequired)
+              ? "manual_review"
+              : detections.length > 0
+                ? "match"
+                : toMockStatus(photo.status),
+            bg: index % 2 === 0 ? ["#12355b", "#6d4c41"] : ["#312e81", "#0f766e"],
+            figures: detections.map((detection, detectionIndex) => ({
+              id: detection.id,
+              x: detection.boundingBox?.x ?? 18 + detectionIndex * 22,
+              y: detection.boundingBox?.y ?? 32,
+              w: detection.boundingBox?.width ?? 14,
+              h: detection.boundingBox?.height ?? 42,
+              color: figureColors[detectionIndex % figureColors.length],
+              match: detection.attendeeId,
+              confidence: detection.confidenceRaw
+            })),
+            redacted: Boolean(photo.redacted_image_url)
+          };
+        });
+
+        setPhotoList(backendPhotos);
+        setSelectedPhotoId(backendPhotos[0]?.id ?? "");
+      }
+    }
+
+    void loadBackendDemoEvent();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const selectedEvent =
     eventList.find((event) => event.id === selectedEventId) ?? eventList[0];
   const selectedPhoto =
     photoList.find((photo) => photo.id === selectedPhotoId) ?? photoList[0];
+  const selectedPhotoReviewModel = selectedPhoto
+    ? getMockPhotoReviewModel(toReviewFixtureId(selectedPhoto.id))
+    : undefined;
   const processedCount = photoList.filter((photo) => photo.redacted || photo.status === "no_match").length;
   const reviewCount = photoList.filter((photo) => photo.status === "manual_review").length;
   const progress = Math.round((processedCount / Math.max(photoList.length, 1)) * 100);
@@ -229,9 +408,11 @@ export function AnonifyExperience() {
           <div className="workspace-panel review-panel">
             {selectedPhoto ? (
               <PhotoReview
+                attendees={optOutAttendees}
                 onAnonymize={anonymizeSelectedPhoto}
                 photo={selectedPhoto}
                 progress={progress}
+                reviewModel={selectedPhotoReviewModel}
                 threshold={threshold / 100}
               />
             ) : null}
@@ -254,17 +435,25 @@ export function AnonifyExperience() {
 }
 
 function PhotoReview({
+  attendees,
   onAnonymize,
   photo,
   progress,
+  reviewModel,
   threshold
 }: {
+  attendees: Attendee[];
   onAnonymize: () => void;
   photo: OrganizerPhoto;
   progress: number;
+  reviewModel?: PhotoReviewModel;
   threshold: number;
 }) {
-  const matches = useMemo(() => photo.figures.filter((figure) => figure.match), [photo]);
+  const reviewPhoto = useMemo(
+    () => (reviewModel ? { ...photo, figures: toReviewFigures(reviewModel) } : photo),
+    [photo, reviewModel]
+  );
+  const matches = useMemo(() => reviewPhoto.figures.filter((figure) => figure.match), [reviewPhoto]);
 
   return (
     <>
@@ -282,11 +471,11 @@ function PhotoReview({
       <div className="comparison-grid" aria-label="Before and after comparison">
         <figure>
           <figcaption>Before</figcaption>
-          <PhotoPreview photo={photo} redacted={false} large />
+          <PhotoPreview photo={reviewPhoto} redacted={false} large />
         </figure>
         <figure>
           <figcaption>After</figcaption>
-          <PhotoPreview photo={photo} redacted={photo.redacted} large />
+          <PhotoPreview photo={reviewPhoto} redacted={photo.redacted} large />
         </figure>
       </div>
 
@@ -302,7 +491,25 @@ function PhotoReview({
 
       <div className="detections-list">
         <p className="section-label">Opt-out detections</p>
-        {matches.length === 0 ? (
+        {reviewModel ? <p className="helper-text">{reviewModel.confidenceWarning}</p> : null}
+        {reviewModel ? (
+          reviewModel.participants.length === 0 ? (
+            <p className="empty-state">No opted-out attendees were detected in this photo.</p>
+          ) : (
+            reviewModel.participants.map((participant) => (
+              <div className="detection-row" key={participant.attendeeId}>
+                <span className={participant.reviewRequired ? "dot amber" : "dot green"} />
+                <div>
+                  <strong>{participant.attendeeName}</strong>
+                  <small>
+                    {participant.statusLabel} / {participant.reviewRequired ? "Manual review required" : "No manual review required"}
+                  </small>
+                </div>
+                <code>{participant.confidencePercent}%</code>
+              </div>
+            ))
+          )
+        ) : matches.length === 0 ? (
           <p className="empty-state">No opted-out attendees were detected in this photo.</p>
         ) : (
           matches.map((figure) => {

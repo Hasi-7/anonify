@@ -10,7 +10,9 @@ import {
   useRef,
   useState
 } from "react";
-import { events } from "@/lib/mock-data";
+import Link from "next/link";
+import { adaptEvent, getEventByKey, submitAttendee } from "@/lib/api";
+import { events, type EventSummary } from "@/lib/mock-data";
 
 type ConsentChoice = "opt-in" | "opt-out";
 type EntrySource = "search" | "qr-link" | "qr-camera";
@@ -36,10 +38,23 @@ const formatKey = (value: string) => {
   return normalized.length <= 4 ? normalized : `${normalized.slice(0, 4)}-${normalized.slice(4, 8)}`;
 };
 
-const findEvent = (value: string) => {
+const findEvent = (value: string, eventList: EventSummary[]) => {
   const normalized = normalizeKey(value);
-  return events.find((event) => normalizeKey(event.key) === normalized) ?? null;
+  return eventList.find((event) => normalizeKey(event.key) === normalized) ?? null;
 };
+
+const toEventSummary = (event: ReturnType<typeof adaptEvent>): EventSummary => ({
+  id: event.id,
+  name: event.name,
+  date: "May 2, 2026",
+  key: event.key,
+  attendees: 0,
+  optOuts: 0,
+  photos: 0,
+  processed: 0,
+  needsReview: 0,
+  active: true
+});
 
 const getUrlEventKey = () => {
   if (typeof window === "undefined") {
@@ -63,7 +78,8 @@ export default function AttendPage() {
 
   const [step, setStep] = useState<Step>("lookup");
   const [eventKey, setEventKey] = useState("");
-  const [selectedEvent, setSelectedEvent] = useState(events[0] ?? null);
+  const [eventList, setEventList] = useState<EventSummary[]>(events);
+  const [selectedEvent, setSelectedEvent] = useState<EventSummary | null>(events[0] ?? null);
   const [source, setSource] = useState<EntrySource>("search");
   const [lookupMessage, setLookupMessage] = useState("Scan a QR code or search for your event.");
   const [fullName, setFullName] = useState("");
@@ -79,15 +95,15 @@ export default function AttendPage() {
   const matches = useMemo(() => {
     const normalized = normalizeKey(eventKey);
     if (!normalized) {
-      return events;
+      return eventList;
     }
 
-    return events.filter(
+    return eventList.filter(
       (event) =>
         normalizeKey(event.key).includes(normalized) ||
         event.name.toUpperCase().includes(eventKey.toUpperCase())
     );
-  }, [eventKey]);
+  }, [eventKey, eventList]);
 
   const stopCamera = useCallback(() => {
     stream?.getTracks().forEach((track) => track.stop());
@@ -107,25 +123,6 @@ export default function AttendPage() {
   }, [stream]);
 
   useEffect(() => {
-    const urlKey = getUrlEventKey();
-    if (!urlKey) {
-      return;
-    }
-
-    const event = findEvent(urlKey);
-    setEventKey(formatKey(urlKey));
-    setSource("qr-link");
-
-    if (event) {
-      setSelectedEvent(event);
-      setStep("consent");
-      setLookupMessage(`${event.name} matched from the QR link.`);
-    } else {
-      setLookupMessage("That QR link did not match a known event.");
-    }
-  }, []);
-
-  useEffect(() => {
     if (!videoRef.current || !stream) {
       return;
     }
@@ -136,18 +133,66 @@ export default function AttendPage() {
 
   useEffect(() => () => stopCamera(), [stopCamera]);
 
-  const chooseEvent = (event: (typeof events)[number], entrySource: EntrySource = "search") => {
+  const chooseEvent = useCallback((event: EventSummary, entrySource: EntrySource = "search") => {
     stopCamera();
     setSelectedEvent(event);
     setEventKey(event.key);
     setSource(entrySource);
     setLookupMessage(`${event.name} selected.`);
     setStep("consent");
-  };
+  }, [stopCamera]);
 
-  const searchEvent = (event: FormEvent<HTMLFormElement>) => {
+  const lookupBackendEvent = useCallback(async (value: string) => {
+    const result = await getEventByKey(formatKey(value));
+    if (!result.ok) {
+      return null;
+    }
+
+    const backendEvent = toEventSummary(adaptEvent(result.data));
+    setEventList((currentEvents) => [
+      backendEvent,
+      ...currentEvents.filter((event) => normalizeKey(event.key) !== normalizeKey(backendEvent.key))
+    ]);
+    return backendEvent;
+  }, []);
+
+  useEffect(() => {
+    const urlKey = getUrlEventKey();
+    if (!urlKey) {
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        const event = (await lookupBackendEvent(urlKey)) ?? findEvent(urlKey, eventList);
+
+        if (cancelled) {
+          return;
+        }
+
+        setEventKey(formatKey(urlKey));
+        setSource("qr-link");
+
+        if (event) {
+          chooseEvent(event, "qr-link");
+          setLookupMessage(`${event.name} matched from the QR link.`);
+        } else {
+          setLookupMessage("That QR link did not match a known event.");
+        }
+      })();
+    }, 0);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [chooseEvent, eventList, lookupBackendEvent]);
+
+  const searchEvent = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const match = findEvent(eventKey);
+    setLookupMessage("Searching for that event...");
+    const match = (await lookupBackendEvent(eventKey)) ?? findEvent(eventKey, eventList);
 
     if (!match) {
       setLookupMessage("No event found for that key.");
@@ -222,7 +267,7 @@ export default function AttendPage() {
         }
 
         const parsed = rawValue.includes("?") ? new URL(rawValue).searchParams.get("event") ?? rawValue : rawValue;
-        const event = findEvent(parsed);
+        const event = findEvent(parsed, eventList);
 
         if (event) {
           chooseEvent(event, "qr-camera");
@@ -240,7 +285,7 @@ export default function AttendPage() {
         qrTimerRef.current = null;
       }
     };
-  }, [cameraMode, chooseEvent, stream]);
+  }, [cameraMode, chooseEvent, eventList, stream]);
 
   const captureReference = useCallback(() => {
     const video = videoRef.current;
@@ -295,7 +340,7 @@ export default function AttendPage() {
     }, 1000);
   };
 
-  const submitConsent = (event: FormEvent<HTMLFormElement>) => {
+  const submitConsent = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!selectedEvent || !fullName.trim()) {
@@ -328,6 +373,16 @@ export default function AttendPage() {
       // Local storage is optional for the demo flow.
     }
 
+    void (async () => {
+      const backendEvent = await lookupBackendEvent(selectedEvent.key);
+      await submitAttendee(backendEvent?.id ?? selectedEvent.id, {
+        name: record.name,
+        consent_status: consent === "opt-out" ? "opted_out" : "consented",
+        opted_out: consent === "opt-out",
+        reference_photo_url: consent === "opt-out" ? photoDataUrl || null : null
+      });
+    })();
+
     setSubmission(record);
     setStep("submitted");
   };
@@ -345,7 +400,7 @@ export default function AttendPage() {
               <small>attendee privacy</small>
             </div>
           </div>
-          <a className="link-button" href="/sign-in">Organizer sign in</a>
+          <Link className="link-button" href="/sign-in">Organizer sign in</Link>
         </header>
 
         <div className="attendee-layout">
