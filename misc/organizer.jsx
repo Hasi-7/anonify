@@ -1,4 +1,4 @@
-// anonify — organizer-side screens
+// Anonify — organizer-side screens
 
 // ── Browser chrome wrapper ─────────────────────────────────
 function BrowserChrome({ url, children }) {
@@ -23,7 +23,7 @@ function Sidebar({ view, setView, currentEvent }) {
     <div className="sidebar">
       <div className="sidebar-brand">
         <div className="brand-mark">a</div>
-        <span>anonify</span>
+        <span>Anonify</span>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>

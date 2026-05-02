@@ -1,6 +1,6 @@
-# anonify Backend
+# Anonify Backend
 
-`backend/` is the canonical Flask + SQLite backend for anonify.
+`backend/` is the canonical Flask + SQLite backend for Anonify.
 
 ## Responsibilities
 

@@ -1,8 +1,8 @@
-# anonify Agent Guide
+# Anonify Agent Guide
 
 ## Project Goal
 
-anonify is a privacy-first event photo redaction tool. Organizers sign in, create events, share event-specific attendee links or QR codes, collect opt-out submissions, and review event photos where opted-out attendees can be blurred or flagged for manual review.
+Anonify is a privacy-first event photo redaction tool. Organizers sign in, create events, share event-specific attendee links or QR codes, collect opt-out submissions, and review event photos where opted-out attendees can be blurred or flagged for manual review.
 
 ## Current Structure
 

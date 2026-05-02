@@ -34,7 +34,7 @@ if [ -n "$(git status --porcelain)" ]; then
     printf " %q" "$file"
   done
   echo ""
-  echo "  git commit -m \"Prepare anonify hackathon setup\""
+  echo "  git commit -m \"Prepare Anonify hackathon setup\""
   echo ""
   echo "Then run:"
   echo "  ./scripts/create-worktrees.sh"
@@ -47,7 +47,7 @@ worktree_root="$repo_parent/${repo_name}-worktrees"
 
 mkdir -p "$worktree_root"
 
-echo "Creating anonify worktrees under: $worktree_root"
+echo "Creating Anonify worktrees under: $worktree_root"
 
 for i in "${!areas[@]}"; do
   area="${areas[$i]}"

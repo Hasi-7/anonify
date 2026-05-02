@@ -2,7 +2,7 @@
 
 ## 2026-05-02 Initial Pre-Hackathon Decisions
 
-- Project name is anonify.
+- Project name is Anonify.
 - Hacking has not started.
 - Only setup/docs/worktree/dependency manifest work is allowed now.
 - Clerk is for organizer auth only.

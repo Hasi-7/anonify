@@ -15,14 +15,14 @@ Use this directory to keep concise summaries of significant AI-assisted work.
 
 ## Previous Sessions
 
-- Goal: Pre-hackathon repo setup for anonify.
+- Goal: Pre-hackathon repo setup for Anonify.
 - Files changed: Setup docs, dependency manifest, gitignore, and worktree scripts.
 - Commands run: Repository/file inspection, git state checks, and script syntax/guard checks only; no install commands.
 - Decisions made: No product features, scaffolding, or dependency installation before hacking starts.
 - Tests run: Not available yet because no app exists.
 - Open issues: Worktrees require a git repository and committed setup files before creation.
 - Next actions: Commit setup, then run the worktree creation script when the team is ready to open parallel work areas.
-- What should be saved to the second brain: anonify started as pre-hackathon setup; implementation starts with mocked organizer event-key demo flow and mock photo review confidence data.
+- What should be saved to the second brain: Anonify started as pre-hackathon setup; implementation starts with mocked organizer event-key demo flow and mock photo review confidence data.
 
 ## Implementation Mode Session
 
@@ -33,7 +33,7 @@ Use this directory to keep concise summaries of significant AI-assisted work.
 - Tests run: Not run; documentation-only update.
 - Open issues: Main app directory still needs to be adopted or scaffolded.
 - Next actions: Build the mocked organizer event-key flow, dashboard tabs, public attendee form, and mocked photo review.
-- What should be saved to the second brain: anonify has moved into implementation mode, with mock-first demo flow as the current task.
+- What should be saved to the second brain: Anonify has moved into implementation mode, with mock-first demo flow as the current task.
 
 ## Documentation Alignment Session
 

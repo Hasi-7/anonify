@@ -25,7 +25,7 @@ Ignored local test artifacts created under `tmp/`:
 Create the ignored local sample image:
 
 ```powershell
-New-Item -ItemType Directory -Force -Path "tmp" | Out-Null; & "C:\Personal\VSCode\huskyHacks26\.venv\Scripts\python.exe" -c "from PIL import Image, ImageDraw; p=r'C:\Personal\VSCode\huskyHacks26\tmp\redact-source.png'; img=Image.new('RGB',(240,160),'white'); d=ImageDraw.Draw(img); d.rectangle((0,0,239,159),outline='black'); d.rectangle((40,30,100,100),fill='red'); d.rectangle((130,45,190,125),fill='blue'); d.text((12,132),'anonify redact test',fill='black'); img.save(p); print(p)"
+New-Item -ItemType Directory -Force -Path "tmp" | Out-Null; & "C:\Personal\VSCode\huskyHacks26\.venv\Scripts\python.exe" -c "from PIL import Image, ImageDraw; p=r'C:\Personal\VSCode\huskyHacks26\tmp\redact-source.png'; img=Image.new('RGB',(240,160),'white'); d=ImageDraw.Draw(img); d.rectangle((0,0,239,159),outline='black'); d.rectangle((40,30,100,100),fill='red'); d.rectangle((130,45,190,125),fill='blue'); d.text((12,132),'Anonify redact test',fill='black'); img.save(p); print(p)"
 ```
 
 Health check:

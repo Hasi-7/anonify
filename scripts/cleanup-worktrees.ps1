@@ -27,7 +27,7 @@ if (-not (Test-Path $worktreeRoot)) {
   exit 0
 }
 
-Write-Host "This will remove anonify worktree directories under:"
+Write-Host "This will remove Anonify worktree directories under:"
 Write-Host "  $worktreeRoot"
 Write-Host ""
 $confirmation = Read-Host "Type DELETE to continue"

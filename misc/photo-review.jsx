@@ -1,4 +1,4 @@
-// anonify — photo review screen
+// Anonify — photo review screen
 
 function PhotoReview({ photo, allPhotos, setView, photoLayout = 'split', blurThreshold = 0.65 }) {
   const [mode, setMode] = React.useState('redacted'); // original / redacted

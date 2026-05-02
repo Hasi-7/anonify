@@ -1,6 +1,6 @@
-# anonify
+# Anonify
 
-anonify is a privacy-first event photo redaction tool for event organizers.
+Anonify is a privacy-first event photo redaction tool for event organizers.
 
 ## Repository Structure
 

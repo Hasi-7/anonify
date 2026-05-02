@@ -1,4 +1,4 @@
-"""Shared test fixtures for the anonify backend."""
+"""Shared test fixtures for the Anonify backend."""
 
 import sqlite3
 import pytest

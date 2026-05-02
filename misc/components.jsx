@@ -1,4 +1,4 @@
-// anonify — shared components & icons
+// Anonify — shared components & icons
 
 // ── Icons (lucide-style, hand-rolled) ─────────────────────────
 function Icon({ name, size = 16, ...rest }) {

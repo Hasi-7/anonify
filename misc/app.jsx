@@ -1,4 +1,4 @@
-// anonify — main app
+// Anonify — main app
 
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "accent": "#2563eb",

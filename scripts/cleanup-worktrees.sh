@@ -17,7 +17,7 @@ if [ ! -d "$worktree_root" ]; then
   exit 0
 fi
 
-echo "This will remove anonify worktree directories under:"
+echo "This will remove Anonify worktree directories under:"
 echo "  $worktree_root"
 echo ""
 read -r -p "Type DELETE to continue: " confirmation

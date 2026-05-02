@@ -46,7 +46,7 @@ if (-not [string]::IsNullOrWhiteSpace(($status -join "`n"))) {
   Write-Host "Run:"
   Write-Host "  git status"
   Write-Host "  git add $($setupFiles -join ' ')"
-  Write-Host '  git commit -m "Prepare anonify hackathon setup"'
+  Write-Host '  git commit -m "Prepare Anonify hackathon setup"'
   Write-Host ""
   Write-Host "Then run:"
   Write-Host "  .\scripts\create-worktrees.ps1"
@@ -59,7 +59,7 @@ $worktreeRoot = Join-Path $repoParent "$repoName-worktrees"
 
 New-Item -ItemType Directory -Force -Path $worktreeRoot | Out-Null
 
-Write-Host "Creating anonify worktrees under: $worktreeRoot"
+Write-Host "Creating Anonify worktrees under: $worktreeRoot"
 
 foreach ($area in $areas) {
   $dir = Join-Path $worktreeRoot $area.Name

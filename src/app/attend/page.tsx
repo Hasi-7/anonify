@@ -364,7 +364,7 @@ export default function HomePage() {
                 a
               </div>
               <div>
-                <p className="eyebrow">anonify attendee</p>
+                <p className="eyebrow">Anonify attendee</p>
                 <h1>Submit your event reference photo</h1>
               </div>
             </div>
@@ -591,7 +591,7 @@ function EventCard({
         <div className="brand-mark small" aria-hidden="true">
           a
         </div>
-        <span>anonify</span>
+        <span>Anonify</span>
       </div>
 
       <div className="mobile-photo">

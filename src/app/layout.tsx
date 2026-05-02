@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "anonify | Privacy-first event photo review",
+  title: "Anonify | Privacy-first event photo review",
   description:
     "A demo frontend for event opt-outs, mocked photo review, and privacy-first redaction workflows."
 };

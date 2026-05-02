@@ -1,5 +1,5 @@
-import { AnonifyExperience } from "@/components/anonify-experience";
+import { redirect } from "next/navigation";
 
 export default function DashboardPage() {
-  return <AnonifyExperience />;
+  redirect("/organizer");
 }

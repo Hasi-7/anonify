@@ -1,4 +1,4 @@
-// anonify — attendee mobile flow (inside iOS frame)
+// Anonify — attendee mobile flow (inside iOS frame)
 
 function AttendeeFlow({ initialKey = 'HUSK-K7M2', accent }) {
   const [step, setStep] = React.useState('key'); // key → name → consent → upload → done
@@ -19,7 +19,7 @@ function AttendeeFlow({ initialKey = 'HUSK-K7M2', accent }) {
             width: 24, height: 24, borderRadius: 6, background: '#f4f4f6', color: '#0a0a0c',
             display: 'grid', placeItems: 'center', fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: 13,
           }}>a</div>
-          <span style={{ fontWeight: 600, fontSize: 15 }}>anonify</span>
+          <span style={{ fontWeight: 600, fontSize: 15 }}>Anonify</span>
         </div>
         <span className="badge muted" style={{ fontSize: 10 }}><Icon name="lock" size={9}/>Private</span>
       </div>
@@ -88,7 +88,7 @@ function AttendeeFlow({ initialKey = 'HUSK-K7M2', accent }) {
             <div style={{ marginTop: 16, padding: 12, borderRadius: 12, background: 'rgba(37,99,235,0.08)', border: `1px solid ${accent}30`, display: 'flex', gap: 10 }}>
               <Icon name="lock" size={16} style={{ color: accent, flexShrink: 0, marginTop: 2 }}/>
               <div style={{ fontSize: 12, color: '#a1a1aa', lineHeight: 1.5 }}>
-                anonify is a privacy review assistant. Detection is not perfect — organizers manually review low-confidence matches.
+                Anonify is a privacy review assistant. Detection is not perfect — organizers manually review low-confidence matches.
               </div>
             </div>
           </div>

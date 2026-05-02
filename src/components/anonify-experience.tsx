@@ -64,7 +64,7 @@ export function AnonifyExperience() {
               a
             </span>
             <span>
-              <span className="block font-semibold">anonify</span>
+              <span className="block font-semibold">Anonify</span>
               <span className="block text-xs text-zinc-400">event photo privacy</span>
             </span>
           </button>

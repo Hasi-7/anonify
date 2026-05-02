@@ -1,5 +1,5 @@
 """
-server.py — FastAPI helper service for anonify region-based redaction.
+server.py — FastAPI helper service for Anonify region-based redaction.
 
 Exposes the apply_redaction_plan() function from apply_redaction.py over HTTP
 so the TypeScript app can call it without running Python in-process.
@@ -33,8 +33,8 @@ from .apply_redaction import (
 )
 
 app = FastAPI(
-    title="anonify Redaction Helper",
-    description="Region-based image redaction for the anonify AI/Redaction workstream.",
+    title="Anonify Redaction Helper",
+    description="Region-based image redaction for the Anonify AI/Redaction workstream.",
     version="0.1.0",
     docs_url="/docs",
 )

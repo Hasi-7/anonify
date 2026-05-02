@@ -1,6 +1,6 @@
 # Current Task
 
-Active hackathon implementation for anonify.
+Active hackathon implementation for Anonify.
 
 ## Status
 
