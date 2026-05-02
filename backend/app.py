@@ -19,6 +19,7 @@ from .models import (
 )
 
 _UPLOADS_DIR = Path(__file__).resolve().parent / "uploads" / "attendees"
+_PHOTO_UPLOADS_DIR = Path(__file__).resolve().parent / "uploads" / "photos"
 _DATA_URL_RE = re.compile(r"^data:image/([a-zA-Z+\-]+);base64,(.+)$", re.DOTALL)
 
 
@@ -36,6 +37,35 @@ def _extract_data_url(payload: dict) -> str | None:
         if val and isinstance(val, str) and val.strip().startswith("data:image/"):
             return val.strip()
     return None
+
+
+def _save_event_photo(data_url: str, original_filename: str) -> tuple[str, str] | None:
+    """Decode a data URL and persist it under uploads/photos/.
+
+    Returns (local_filesystem_path, url_path) on success, None on failure.
+    url_path is the value stored in the DB, e.g. /uploads/photos/uuid_event.jpg.
+    """
+    match = _DATA_URL_RE.match(data_url.strip())
+    if not match:
+        return None
+    ext = match.group(1).lower()
+    ext = "jpg" if ext in ("jpeg", "jpg") else ext
+    if ext not in ("jpg", "png", "webp", "gif"):
+        ext = "jpg"
+    # Build a safe filename: uuid prefix avoids collisions even with duplicate names.
+    safe_stem = re.sub(r"[^A-Za-z0-9_.-]+", "-", Path(original_filename).stem).strip(".-") or "photo"
+    filename = f"{uuid.uuid4()}_{safe_stem}.{ext}"
+    try:
+        raw = base64.b64decode(match.group(2))
+    except Exception:
+        return None
+    try:
+        _PHOTO_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+        local_path = _PHOTO_UPLOADS_DIR / filename
+        local_path.write_bytes(raw)
+        return str(local_path), f"/uploads/photos/{filename}"
+    except Exception:
+        return None
 
 
 def _save_reference_photo(data_url: str) -> str | None:
@@ -193,6 +223,29 @@ def create_app() -> Flask:
         photo = insert_photo(db, event_id=event_id, filename=filename.strip(), source=source)
         return jsonify(_photo_dict(photo)), 201
 
+    @app.route("/events/<int:event_id>/photos/upload", methods=["POST"])
+    def upload_event_photo(event_id: int):
+        db = get_db()
+        event = get_event_by_id(db, event_id)
+        if not event:
+            abort(404, description="Event not found")
+
+        payload = request.get_json(silent=True) or {}
+        file_name = payload.get("file_name") or payload.get("filename") or "event-photo.jpg"
+        image_data_url = payload.get("image_data_url")
+
+        if not image_data_url or not isinstance(image_data_url, str):
+            abort(400, description="image_data_url is required")
+
+        saved = _save_event_photo(image_data_url, str(file_name))
+        if saved is None:
+            abort(400, description="Could not decode image_data_url")
+
+        _local_path, url_path = saved
+        # Store the URL path in the filename column so _photo_dict can serve it.
+        photo = insert_photo(db, event_id=event_id, filename=url_path, source="upload")
+        return jsonify(_photo_dict(photo)), 201
+
     @app.route("/events/<int:event_id>/photos", methods=["GET"])
     def list_photos(event_id: int):
         db = get_db()
@@ -239,7 +292,20 @@ def create_app() -> Flask:
             abort(404, description="Photo not found in this event")
 
         payload = request.get_json(silent=True) or {}
-        original_image_url = payload.get("original_image_url") or f"/mock-photos/{photo.filename}"
+
+        # Determine original_image_url for the result record.
+        if photo.filename.startswith("/uploads/photos/"):
+            original_image_url = payload.get("original_image_url") or photo.filename
+        else:
+            original_image_url = payload.get("original_image_url") or f"/mock-photos/{photo.filename}"
+
+        # When no data URL was supplied, try to resolve the stored file on disk.
+        stored_local_path: str | None = None
+        if not payload.get("image_data_url") and photo.filename.startswith("/uploads/photos/"):
+            relative = photo.filename[len("/uploads/photos/"):]
+            candidate = Path(__file__).resolve().parent / "uploads" / "photos" / relative
+            if candidate.is_file():
+                stored_local_path = str(candidate)
 
         update_photo_status(db, photo_id, "processing")
 
@@ -248,7 +314,7 @@ def create_app() -> Flask:
                 event_id=event_id,
                 photo=photo,
                 image_data_url=payload.get("image_data_url"),
-                image_path=payload.get("image_path"),
+                image_path=payload.get("image_path") or stored_local_path,
             )
             opted_out = get_attendees_by_event(db, event_id, opted_out_only=True)
             processing = call_match_and_redact(
@@ -296,6 +362,11 @@ def create_app() -> Flask:
         uploads_dir = Path(__file__).resolve().parent / "uploads" / "attendees"
         return send_from_directory(str(uploads_dir), filename)
 
+    @app.route("/uploads/photos/<string:filename>", methods=["GET"])
+    def serve_event_photo(filename: str):
+        uploads_dir = Path(__file__).resolve().parent / "uploads" / "photos"
+        return send_from_directory(str(uploads_dir), filename)
+
     @app.route("/seed", methods=["POST"])
     def seed_data():
         from .seed import seed_database
@@ -326,12 +397,18 @@ def _attendee_dict(a) -> dict:
 
 
 def _photo_dict(p) -> dict:
+    if p.filename.startswith("/uploads/photos/"):
+        original_image_url = p.filename
+        redacted_image_url = None  # real redaction path comes from the AI helper result
+    else:
+        original_image_url = f"/mock-photos/{p.filename}"
+        redacted_image_url = f"/mock-photos/redacted_{p.filename}" if p.status == "processed" else None
     return {
         "id": p.id, "event_id": p.event_id, "filename": p.filename,
         "source": p.source, "status": p.status,
         "uploaded_at": p.uploaded_at, "processed_at": p.processed_at,
-        "original_image_url": f"/mock-photos/{p.filename}",
-        "redacted_image_url": f"/mock-photos/redacted_{p.filename}" if p.status == "processed" else None,
+        "original_image_url": original_image_url,
+        "redacted_image_url": redacted_image_url,
     }
 
 

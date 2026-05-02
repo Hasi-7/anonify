@@ -11,6 +11,7 @@ import type {
   ProcessPhotoPayload,
   RegisterPhotoPayload,
   SubmitAttendeePayload,
+  UploadPhotoPayload,
 } from "./backend-types"
 
 const DEFAULT_BACKEND_URL = "http://127.0.0.1:5000"
@@ -121,6 +122,13 @@ export function registerEventPhoto(
   payload: RegisterPhotoPayload
 ): Promise<BackendApiResult<BackendPhoto>> {
   return requestBackend(`/events/${eventId}/photos`, { method: "POST", body: payload })
+}
+
+export function uploadEventPhoto(
+  eventId: string | number,
+  payload: UploadPhotoPayload
+): Promise<BackendApiResult<BackendPhoto>> {
+  return requestBackend(`/events/${eventId}/photos/upload`, { method: "POST", body: payload })
 }
 
 export function getEventPhotoDetail(

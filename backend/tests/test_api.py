@@ -186,6 +186,51 @@ class TestAttendeeAPI:
         assert data[0]["name"] == "A"
 
 
+class TestPhotoUploadAPI:
+    _TINY_PNG_B64 = (
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwADhQGAWjR9"
+        "awAAAABJRU5ErkJggg=="
+    )
+
+    def _create_event(self, client):
+        return client.post("/events", json={"name": "Ev", "organizer_id": "org"}).get_json()["id"]
+
+    def test_upload_saves_file_and_returns_url(self, client):
+        eid = self._create_event(client)
+        resp = client.post(f"/events/{eid}/photos/upload", json={
+            "file_name": "group.jpg",
+            "image_data_url": f"data:image/png;base64,{self._TINY_PNG_B64}",
+        })
+        assert resp.status_code == 201
+        data = resp.get_json()
+        assert data["status"] == "pending"
+        # filename stores the URL path; original_image_url echoes it back
+        assert data["filename"].startswith("/uploads/photos/")
+        assert data["original_image_url"].startswith("/uploads/photos/")
+        # Serve route works
+        assert client.get(data["original_image_url"]).status_code == 200
+
+    def test_upload_missing_data_url_rejected(self, client):
+        eid = self._create_event(client)
+        resp = client.post(f"/events/{eid}/photos/upload", json={"file_name": "x.jpg"})
+        assert resp.status_code == 400
+
+    def test_upload_invalid_data_url_rejected(self, client):
+        eid = self._create_event(client)
+        resp = client.post(f"/events/{eid}/photos/upload", json={
+            "file_name": "x.jpg",
+            "image_data_url": "not-a-data-url",
+        })
+        assert resp.status_code == 400
+
+    def test_upload_to_nonexistent_event(self, client):
+        resp = client.post("/events/9999/photos/upload", json={
+            "file_name": "x.jpg",
+            "image_data_url": f"data:image/png;base64,{self._TINY_PNG_B64}",
+        })
+        assert resp.status_code == 404
+
+
 class TestPhotoAPI:
     def _create_event(self, client):
         resp = client.post("/events", json={"name": "Ev", "organizer_id": "org"})

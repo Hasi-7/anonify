@@ -14,11 +14,11 @@ import {
   getEventPhotos,
   getOptOutAttendees,
   processEventPhoto,
-  registerEventPhoto,
-  seedDemoData
+  seedDemoData,
+  uploadEventPhoto,
 } from "@/lib/api";
 import { BACKEND_URL } from "@/lib/api/backend-client";
-import { backendPhotoDetailToPhotoReviewModel } from "@/lib/processing/backend-photo-review-adapter";
+import { backendPhotoDetailToPhotoReviewModel, canBuildPhotoReviewFromBackend } from "@/lib/processing/backend-photo-review-adapter";
 import {
   attendees,
   auditLog,
@@ -174,6 +174,8 @@ export function AnonifyExperience() {
   const [activeTab, setActiveTab] = useState<OrganizerTab>("intake");
   const [exportMessage, setExportMessage] = useState("Anonymize photos to enable exports.");
   const [reviewModelsByPhotoId, setReviewModelsByPhotoId] = useState<Record<string, PhotoReviewModel>>({});
+  const [runningDetectionForId, setRunningDetectionForId] = useState<string | null>(null);
+  const [detectionMessage, setDetectionMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -269,7 +271,7 @@ export function AnonifyExperience() {
         setReviewModelsByPhotoId((currentModels) => {
           const nextModels = { ...currentModels };
           details.forEach((detail) => {
-            if (detail) {
+            if (detail && canBuildPhotoReviewFromBackend(detail)) {
               nextModels[String(detail.id)] = backendPhotoDetailToPhotoReviewModel(detail);
             }
           });
@@ -346,6 +348,8 @@ export function AnonifyExperience() {
   const selectedPhotoReviewModel = selectedPhoto
     ? reviewModelsByPhotoId[selectedPhoto.id] ?? getMockPhotoReviewModel(toReviewFixtureId(selectedPhoto.id))
     : undefined;
+  const reviewModelSource: "backend" | "mock" =
+    selectedPhoto != null && selectedPhoto.id in reviewModelsByPhotoId ? "backend" : "mock";
   const processedCount = photoList.filter((photo) => photo.redacted || photo.status === "no_match").length;
   const reviewCount = photoList.filter((photo) => photo.status === "manual_review").length;
   const progress = Math.round((processedCount / Math.max(photoList.length, 1)) * 100);
@@ -406,6 +410,64 @@ export function AnonifyExperience() {
     );
   };
 
+  const handleRunDetection = async (photo: OrganizerPhoto) => {
+    const backendEventId = /^\d+$/.test(selectedEventId) ? selectedEventId : null;
+    if (!backendEventId || !/^\d+$/.test(photo.id)) {
+      setDetectionMessage("Local detection requires a backend event. Showing mock result.");
+      return;
+    }
+
+    setRunningDetectionForId(photo.id);
+    setDetectionMessage(null);
+
+    try {
+      // Backend resolves the image from the stored path — no need to re-send the data URL.
+      const processed = await processEventPhoto(backendEventId, photo.id, {});
+
+      if (!processed.ok) {
+        setDetectionMessage(`Detection unavailable: ${processed.error}`);
+        return;
+      }
+
+      const imageSize = photo.dataUrl ? await readImageSize(photo.dataUrl) : null;
+      const reviewModel = normalizeReviewModelForPreview(
+        backendPhotoDetailToPhotoReviewModel(processed.data),
+        imageSize
+      );
+      const detail = adaptPhotoDetail(processed.data);
+      const detections = detail.detections;
+      const nextStatus: PhotoStatus = detections.some((d) => d.manualReviewRequired)
+        ? "manual_review"
+        : detections.length > 0
+          ? "match"
+          : "no_match";
+
+      setReviewModelsByPhotoId((currentModels) => ({ ...currentModels, [photo.id]: reviewModel }));
+      setPhotoList((currentPhotos) =>
+        currentPhotos.map((p) =>
+          p.id === photo.id
+            ? {
+                ...p,
+                status: nextStatus,
+                figures: toReviewFigures(reviewModel),
+                redacted: Boolean(processed.data.redacted_image_url),
+              }
+            : p
+        )
+      );
+      setDetectionMessage(
+        detections.length > 0
+          ? `${detections.length} opted-out detection${detections.length === 1 ? "" : "s"} found.`
+          : "No opted-out attendees detected. Mock result shown as fallback."
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setDetectionMessage(`Detection did not complete: ${message}`);
+    } finally {
+      setRunningDetectionForId(null);
+    }
+  };
+
   const handleUploads = (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.currentTarget.files ?? []).filter((file) =>
       file.type.startsWith("image/")
@@ -461,17 +523,17 @@ export function AnonifyExperience() {
             return;
           }
 
-          const imageSize = await readImageSize(dataUrl);
-          const registered = await registerEventPhoto(backendEventId, {
-            filename: file.name || "uploaded-event-photo.jpg",
-            source: "upload"
+          // Upload the file — saves it to backend/uploads/photos/.
+          const uploaded = await uploadEventPhoto(backendEventId, {
+            file_name: file.name || "uploaded-event-photo.jpg",
+            image_data_url: dataUrl,
           });
 
-          if (!registered.ok) {
-            throw new Error(registered.error);
+          if (!uploaded.ok) {
+            throw new Error(uploaded.error);
           }
 
-          const backendPhotoId = String(registered.data.id);
+          const backendPhotoId = String(uploaded.data.id);
           setSelectedPhotoId((currentId) => currentId === created.id ? backendPhotoId : currentId);
           setPhotoList((currentPhotos) =>
             currentPhotos.map((photo) =>
@@ -479,56 +541,15 @@ export function AnonifyExperience() {
                 ? {
                     ...photo,
                     id: backendPhotoId,
-                    captured: formatTime(registered.data.uploaded_at),
-                    name: registered.data.filename,
-                    status: "processing"
+                    captured: formatTime(uploaded.data.uploaded_at),
+                    name: file.name || "uploaded-event-photo.jpg",
+                    status: "not_processed",
                   }
                 : photo
             )
           );
-
-          const processed = await processEventPhoto(backendEventId, backendPhotoId, {
-            image_data_url: dataUrl,
-            original_image_url: dataUrl
-          });
-
-          if (!processed.ok) {
-            throw new Error(processed.error);
-          }
-
-          const reviewModel = normalizeReviewModelForPreview(
-            backendPhotoDetailToPhotoReviewModel(processed.data),
-            imageSize
-          );
-          const detail = adaptPhotoDetail(processed.data);
-          const detections = detail.detections;
-          const nextStatus: PhotoStatus = detections.some((detection) => detection.manualReviewRequired)
-            ? "manual_review"
-            : detections.length > 0
-              ? "match"
-              : "no_match";
-
-          setReviewModelsByPhotoId((currentModels) => ({
-            ...currentModels,
-            [backendPhotoId]: reviewModel
-          }));
-          setPhotoList((currentPhotos) =>
-            currentPhotos.map((photo) =>
-              photo.id === backendPhotoId
-                ? {
-                    ...photo,
-                    status: nextStatus,
-                    figures: toReviewFigures(reviewModel),
-                    redacted: Boolean(processed.data.redacted_image_url)
-                  }
-                : photo
-            )
-          );
-          setUploadMessage(
-            detections.length > 0
-              ? `${file.name} processed with ${detections.length} opted-out detection${detections.length === 1 ? "" : "s"}.`
-              : `${file.name} processed. No opted-out attendees were detected.`
-          );
+          setUploadMessage(`${file.name} saved. Click "Run local detection" to process it.`);
+          setDetectionMessage(null);
         })().catch((error) => {
           const message = error instanceof Error ? error.message : String(error);
           setPhotoList((currentPhotos) =>
@@ -538,7 +559,7 @@ export function AnonifyExperience() {
                 : photo
             )
           );
-          setUploadMessage(`Backend recognition did not complete: ${message}`);
+          setUploadMessage(`Upload did not complete: ${message}`);
         });
       };
 
@@ -671,18 +692,36 @@ export function AnonifyExperience() {
 
             <div className="workspace-panel review-panel">
             {selectedPhoto ? (
-              <PhotoReview
-                attendees={optOutAttendees}
-                exportMessage={exportMessage}
-                onAnonymizeAll={anonymizeAllPhotos}
-                onAnonymize={anonymizeSelectedPhoto}
-                onExportBatch={exportBatch}
-                onExportSelected={exportSelectedPhoto}
-                photo={selectedPhoto}
-                progress={progress}
-                reviewModel={selectedPhotoReviewModel}
-                threshold={threshold / 100}
-              />
+              <>
+                <PhotoReview
+                  attendees={optOutAttendees}
+                  exportMessage={exportMessage}
+                  onAnonymizeAll={anonymizeAllPhotos}
+                  onAnonymize={anonymizeSelectedPhoto}
+                  onExportBatch={exportBatch}
+                  onExportSelected={exportSelectedPhoto}
+                  photo={selectedPhoto}
+                  progress={progress}
+                  reviewModel={selectedPhotoReviewModel}
+                  reviewModelSource={reviewModelSource}
+                  threshold={threshold / 100}
+                />
+                {/^\d+$/.test(selectedPhoto.id) ? (
+                  <div className="detection-action-bar">
+                    <button
+                      className="secondary-button"
+                      disabled={runningDetectionForId === selectedPhoto.id}
+                      onClick={() => void handleRunDetection(selectedPhoto)}
+                      type="button"
+                    >
+                      {runningDetectionForId === selectedPhoto.id ? "Running…" : "Run local detection"}
+                    </button>
+                    {detectionMessage ? (
+                      <small className="helper-text">{detectionMessage}</small>
+                    ) : null}
+                  </div>
+                ) : null}
+              </>
             ) : null}
             <a ref={singleDownloadRef} hidden />
             </div>
@@ -722,6 +761,7 @@ function PhotoReview({
   photo,
   progress,
   reviewModel,
+  reviewModelSource,
   threshold
 }: {
   attendees: Attendee[];
@@ -733,6 +773,7 @@ function PhotoReview({
   photo: OrganizerPhoto;
   progress: number;
   reviewModel?: PhotoReviewModel;
+  reviewModelSource?: "backend" | "mock";
   threshold: number;
 }) {
   const reviewPhoto = useMemo(
@@ -797,7 +838,12 @@ function PhotoReview({
       </div>
 
       <div className="detections-list">
-        <p className="section-label">Opt-out detections</p>
+        <div className="spread">
+          <p className="section-label">Opt-out detections</p>
+          {reviewModelSource === "backend"
+            ? <em className="status-badge green">Live</em>
+            : <em className="status-badge">Demo</em>}
+        </div>
         {reviewModel ? <p className="helper-text">{reviewModel.confidenceWarning}</p> : null}
         {reviewModel ? (
           reviewModel.participants.length === 0 ? (

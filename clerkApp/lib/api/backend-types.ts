@@ -99,6 +99,11 @@ export type RegisterPhotoPayload = {
   source?: "upload" | "google_drive"
 }
 
+export type UploadPhotoPayload = {
+  file_name: string
+  image_data_url: string
+}
+
 export type ProcessPhotoPayload = {
   image_data_url?: string
   image_path?: string

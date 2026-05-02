@@ -85,6 +85,19 @@ def resolve_image_path(
     raise ProcessingError("No readable event photo was provided")
 
 
+_BACKEND_DIR = Path(__file__).resolve().parent
+
+
+def _resolve_upload_path(url_path: str) -> str | None:
+    """Resolve a /uploads/... URL path to an absolute filesystem path."""
+    # url_path looks like /uploads/attendees/uuid.jpg or /uploads/photos/uuid.jpg
+    if url_path.startswith("/uploads/"):
+        candidate = _BACKEND_DIR / url_path.lstrip("/")
+        if candidate.is_file():
+            return str(candidate)
+    return None
+
+
 def attendee_payloads(event_id: int, attendees: list[Attendee]) -> list[dict[str, str]]:
     payloads: list[dict[str, str]] = []
     base_dir = PROCESSING_DIR / f"event_{event_id}" / "references"
@@ -100,6 +113,8 @@ def attendee_payloads(event_id: int, attendees: list[Attendee]) -> list[dict[str
                     base_dir,
                     f"attendee_{attendee.id}",
                 )
+            elif reference_url.startswith("/uploads/"):
+                reference_path = _resolve_upload_path(reference_url)
             elif Path(reference_url).is_file():
                 reference_path = reference_url
 

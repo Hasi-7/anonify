@@ -71,6 +71,8 @@ uvicorn ai_redaction.server:app --reload --port 8001
 
 Once running, ensure your `.env.local` in `clerkApp/` contains `REDACTION_API_URL=http://127.0.0.1:8001` to communicate with the helper.
 
+For local face recognition using the YuNet/SFace ONNX models — including download commands, the `demo_recognition_test.py` harness, how to verify `activePath`, and git safety rules — see [`docs/ai-sessions/13-local-ai-model-setup.md`](docs/ai-sessions/13-local-ai-model-setup.md).
+
 ## MVP Flow
 
 The target demo flow is:
