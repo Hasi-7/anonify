@@ -1,0 +1,21 @@
+# Graphify ignore template
+
+.env
+.env.*
+*.key
+*.pem
+*.p12
+*.sqlite
+*.db
+
+node_modules/
+.venv/
+venv/
+dist/
+build/
+.next/
+.cache/
+.git/
+
+exports/
+backups/
