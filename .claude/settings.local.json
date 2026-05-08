@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "PowerShell(Remove-Item *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Personal\\\\VSCode\\\\huskyHacks26\\\\ai_redaction\" -Recurse)",
+      "Bash(Select-Object FullName)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Personal\\\\VSCode\\\\huskyHacks26\\\\ai_redaction\" | ForEach-Object { $_.FullName })",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Personal\\\\VSCode\\\\huskyHacks26\\\\docs\" -Recurse | ForEach-Object { $_.FullName })",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Personal\\\\VSCode\\\\huskyHacks26\\\\clerkApp\\\\lib\" -Recurse | ForEach-Object { $_.FullName })",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Personal\\\\VSCode\\\\huskyHacks26\\\\clerkApp\\\\server\" -Recurse | ForEach-Object { $_.FullName })",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Personal\\\\VSCode\\\\huskyHacks26\\\\clerkApp\\\\mocks\" -Recurse | ForEach-Object { $_.FullName })",
+      "Bash(curl *)",
+      "Bash(.venv\\\\Scripts\\\\python.exe *)",
+      "Bash(python -c \"import cv2; print\\('cv2 available:', cv2.__version__\\)\")",
+      "Bash(python -c \"import face_matching\")",
+      "Bash(netstat -ano)",
+      "Bash(python -c \"import json,sys; routes=[r['path'] for r in json.load\\(sys.stdin\\)['paths']]; print\\(routes\\)\")",
+      "Bash(python -c \"import json,sys; data=json.load\\(sys.stdin\\); print\\(list\\(data.get\\('paths',{}\\).keys\\(\\)\\)\\)\")",
+      "Bash(Invoke-WebRequest -Uri \"http://127.0.0.1:8001/health\" -Method GET -TimeoutSec 5)",
+      "Bash(Select-Object -ExpandProperty Content)",
+      "Bash(python -m uvicorn ai_redaction.server:app --host 127.0.0.1 --port 8001)",
+      "Bash(python3 -c ' *)",
+      "Bash(python *)",
+      "Bash(Remove-Item \"C:\\\\Personal\\\\VSCode\\\\huskyHacks26\\\\backend\\\\anonify.db\" -Force -ErrorAction SilentlyContinue)",
+      "Bash(Remove-Item \"C:\\\\Personal\\\\VSCode\\\\huskyHacks26\\\\backend\\\\uploads\" -Recurse -Force -ErrorAction SilentlyContinue)",
+      "Bash(Write-Host \"DB and uploads cleared\")",
+      "Bash(pkill -f \"flask.*backend.app\")",
+      "Bash(pkill -f \"python.*backend.app\")",
+      "PowerShell(Get-NetTCPConnection *)",
+      "Bash(git fetch *)",
+      "Bash(git pull *)",
+      "Bash(grep -E \"\\\\.\\(tsx|ts\\)$\")",
+      "Bash(Get-ChildItem *)",
+      "Bash(git check-ignore *)"
+    ]
+  }
+}

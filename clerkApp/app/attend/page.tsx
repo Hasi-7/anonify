@@ -257,6 +257,7 @@ export default function AttendPage() {
   };
 
   const openCamera = async () => {
+    console.log("[attend] openCamera: start, getUserMedia available:", Boolean(navigator.mediaDevices?.getUserMedia));
     if (!navigator.mediaDevices?.getUserMedia) {
       setCameraStatus("Camera is unavailable in this browser. Try desktop Chrome, Edge, or a mobile browser.");
       setCaptureState("invalid");
@@ -289,7 +290,9 @@ export default function AttendPage() {
       streamRef.current = mediaStream;
       setStream(mediaStream);
       setCameraStatus("Camera warming up...");
-    } catch {
+      console.log("[attend] openCamera: stream acquired, tracks:", mediaStream.getTracks().map(t => `${t.kind}:${t.readyState}`));
+    } catch (err) {
+      console.error("[attend] openCamera: failed", err);
       setCameraStatus("Camera access needs permission or HTTPS.");
       setCaptureState("invalid");
     }
@@ -403,7 +406,9 @@ export default function AttendPage() {
     context.translate(width, 0);
     context.scale(-1, 1);
     context.drawImage(video, 0, 0, width, height);
-    setPhotoDataUrl(canvas.toDataURL("image/jpeg", 0.88));
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.88);
+    console.log("[attend] captureReference: captured, dataUrl length:", dataUrl.length, "starts with data:image:", dataUrl.startsWith("data:image/"));
+    setPhotoDataUrl(dataUrl);
     context.setTransform(1, 0, 0, 1, 0, 0);
     setCameraStatus("Good capture saved.");
     setCaptureState("captured");
@@ -482,6 +487,7 @@ export default function AttendPage() {
 
   const submitConsent = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    console.log("[attend] submitConsent: clicked, consent:", consent, "photoDataUrl set:", Boolean(photoDataUrl), "photoDataUrl length:", photoDataUrl?.length ?? 0, "selectedEvent:", selectedEvent?.key);
 
     if (isSubmitting || !selectedEvent || !fullName.trim()) {
       return;
@@ -521,12 +527,15 @@ export default function AttendPage() {
       const backendEventId = backendEvent?.id ?? (/^\d+$/.test(selectedEvent.id) ? selectedEvent.id : null);
 
       if (backendEventId) {
+        const photoPayload = consent === "opt-out" ? photoDataUrl || null : null;
+        console.log("[attend] submitAttendee: backendEventId:", backendEventId, "sending reference_photo_url:", photoPayload ? `[data URL, length ${photoPayload.length}]` : null);
         const submitResult = await submitAttendee(backendEventId, {
           name: record.name,
           consent_status: consent === "opt-out" ? "opted_out" : "consented",
           opted_out: consent === "opt-out",
-          reference_photo_url: consent === "opt-out" ? photoDataUrl || null : null
+          reference_photo_url: photoPayload
         });
+        console.log("[attend] submitAttendee: result ok:", submitResult.ok, submitResult.ok ? "" : `error: ${submitResult.error}`);
 
         if (!submitResult.ok) {
           throw new Error(submitResult.error);

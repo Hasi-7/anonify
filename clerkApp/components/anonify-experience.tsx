@@ -291,7 +291,7 @@ export function AnonifyExperience() {
         setReviewModelsByPhotoId((currentModels) => {
           const nextModels = { ...currentModels };
           detailsWithSizes.forEach((item) => {
-            if (item?.detail && canBuildPhotoReviewFromBackend(detail)) {
+            if (item?.detail && canBuildPhotoReviewFromBackend(item.detail)) {
               nextModels[String(item.detail.id)] = backendPhotoDetailToPhotoReviewModel(item.detail);
             }
           });
@@ -568,49 +568,8 @@ export function AnonifyExperience() {
                 : photo
             )
           );
-
-          const processed = await processEventPhoto(backendEventId, backendPhotoId, {
-            image_data_url: dataUrl,
-            original_image_url: dataUrl
-          });
-
-          if (!processed.ok) {
-            throw new Error(processed.error);
-          }
-
-          const reviewModel = normalizeReviewModelForPreview(
-            backendPhotoDetailToPhotoReviewModel(processed.data),
-            imageSize
-          );
-          const detail = adaptPhotoDetail(processed.data);
-          const detections = detail.detections;
-          const nextStatus: PhotoStatus = detections.some((detection) => detection.manualReviewRequired)
-            ? "manual_review"
-            : detections.length > 0
-              ? "match"
-              : "no_match";
-
-          setReviewModelsByPhotoId((currentModels) => ({
-            ...currentModels,
-            [backendPhotoId]: reviewModel
-          }));
-          setPhotoList((currentPhotos) =>
-            currentPhotos.map((photo) =>
-              photo.id === backendPhotoId
-                ? {
-                    ...photo,
-                    status: nextStatus,
-                    figures: toReviewFigures(reviewModel),
-                    redacted: Boolean(processed.data.redacted_image_url)
-                  }
-                : photo
-            )
-          );
-          setUploadMessage(
-            detections.length > 0
-              ? `${file.name} processed with ${detections.length} opted-out detection${detections.length === 1 ? "" : "s"}.`
-              : `${file.name} processed. No opted-out attendees were detected.`
-          );
+          setUploadMessage(`${file.name} saved. Click "Run local detection" to process it.`);
+          setDetectionMessage(null);
         })().catch((error) => {
           const message = error instanceof Error ? error.message : String(error);
           setPhotoList((currentPhotos) =>
